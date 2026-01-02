@@ -143,8 +143,9 @@ register2DRenderer(function(context)
     -- { text = "chest: " .. "-" ..gut.dump.chestTitle .. "-" .. " | " .. gut.dump.chestSlots },
     -- { text = "slot: " .. (gut.dump.chestItem or "idk") .. " | " .. (gut.dump.chestItemFromContainer or "idk") },
     -- { text = "setPet: " .. tostring(gut.dump.setPet) .. " | " .. tostring(gut.dump.setPetCd) .. " | " .. tostring(gut.dump.setPet_petsCmdCd) },
-    { text = "pestAlive: " .. (gut.inf.pestAlive or "idk") .. " | " .. type(gut.inf.pestAlive) },
-    { text = "pestCd: " .. (gut.inf.pestCd or "idk") .. " | " .. type(gut.inf.pestCd) }
+    { text = "pestAlive: " .. (gut.inf.pestAlive or "idk") },
+    { text = "pestCdRaw: " .. (gut.dump.pestCdRaw or "idk") .. " | " .. type(gut.inf.pestCdRaw) },
+    { text = "pestCd: " .. (gut.inf.pestCd or "idk") }
   }
   gui.content = guiContent
 
@@ -176,9 +177,10 @@ end
 
 registerClientTickPost(function()
 
-  local tab = player.getTab()
+  local tabBody = (player.getTab()).body
+  if not tabBody then return end
 
-  for _, line in ipairs(tab.body) do
+  for _, line in ipairs(tabBody) do
     local remLine = removeMinecraftColors(line)
 
     local vis = string.match(remLine, "Visitors: %((%d+)%)")

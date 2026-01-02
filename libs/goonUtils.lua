@@ -10,21 +10,32 @@ local regexPetNameInManualSummon = "You summoned your (.-)!"
 ---@field visitors number | string | nil
 ---@field spray string | nil
 ---@field pestCd number | string | nil
----@field pos {x: number, y: number, z: number} | nil
----@field velocity number | nil
+---@field pos {x: number, y: number, z: number} | string | nil
+---@field velocity number | string | nil
 
 ---@class All
 ---@field inf inf
 local all = {
-  inf = {},
+  inf = {
+    pet = "idk",
+    visitors = "idk",
+    spray = "idk",
+    pestCd = "idk",
+    pos = "idk",
+    velocity = "idk"
+  },
   dump = {},
   cds = {}
 }
 
 --------------------------------------------------------------------------------
+
+---@param string string
+---@return nil
 local function grint(string)
   print("[goon] " .. string)
 end
+
 --------------------------------------------------------------------------------
 
 function all.onCooldown(uid, ticks)
@@ -67,9 +78,9 @@ end
 
 ---@param s string
 ---@return integer
-local function _hndTimeNumbers(s)
-  grint(s) do return 0 end
-  -- if s == "READY" then return 0 end
+local function _handleTimeNumbers(s)
+  if s == "MAX PESTS" then return -1 end
+  if s == "READY" then return 0 end
   local min = s:match("(%d*)m") or 0
   local sec = s:match("(%d+)s") or 0
   return (tonumber(min) * 60) + tonumber(sec)
@@ -89,8 +100,9 @@ local function _getTabInfo(key, line, regex, fallbackValue, isNumber, dump)
 end
 
 local function getTabInfo(player)
-  local tab = player.getTab()
-  for _, lineRaw in ipairs(tab.body) do
+  local tabBody = (player.getTab()).body
+  if not tabBody then return end
+  for _, lineRaw in ipairs(tabBody) do
     local line = removeMinecraftColors(lineRaw)
 
     -- global
@@ -101,8 +113,10 @@ local function getTabInfo(player)
     _getTabInfo("spray", line, "Spray: (.+)")
     _getTabInfo("pestAlive", line, "Alive: (%d)", -1, true)
 
-    _getTabInfo("pestCd", line, "Cooldown: (.*)", dump=true)
-    -- all.inf.pestCd = _hndTimeNumbers(all.dump.pestCdRaw)
+    _getTabInfo("pestCdRaw", line, "Cooldown: (.*)", "MAX PESTS", false, true)
+    if all.dump.pestCdRaw then
+      all.inf.pestCd = _handleTimeNumbers(all.dump.pestCdRaw)
+    end
 
     -- test stuff
     -- any screen is open boolean

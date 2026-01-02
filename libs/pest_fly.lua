@@ -32,9 +32,10 @@ function scripts.getLockFailsafe()
 end
 
 function scripts.getPestPlots()
-  local tab = player.getTab()
+  local tabBody = (player.getTab()).body
+  if not tabBody then return end
   local alive = 0
-  for index, line in ipairs(tab.body) do
+  for index, line in ipairs(tabBody) do
     line = line:gsub("§4", "")
     line = line:gsub("§b", "")
     line = line:gsub("§f", "")
