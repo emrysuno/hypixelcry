@@ -45,12 +45,13 @@ register2DRenderer(function(ctx)
       gut.getColoredStatusInStringOfAFunction("D", player.input.isPressedRight()) .. " " ..
       gut.getColoredStatusInStringOfAFunction("C", player.isSneaking())
     )},
-    { text = gut.getColoredStatusInStringOfAFunction("Rod", player.fishHook, true) },
+    { text = gut.getColoredStatusInStringOfAFunction("rod", player.fishHook, true) },
     { text = "pet: " .. gut.inf.pet },
     { text = "entities nearby: " .. mobDisplay },
     { text = "pos: " .. gut.tableToString(gut.inf.pos) },
     { text = "vel: " .. gut.inf.velocity },
-    { text = "location: " .. gut.inf.location }
+    { text = "location: " .. gut.inf.location },
+    { text = "test: " .. tostring(gut.tmp.test) }
   }
 
 end)
