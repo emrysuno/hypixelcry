@@ -1,18 +1,22 @@
 local idk = "idk"
+local idkInt = -1
 -- local regexPetNameInTab = "%[Lvl %d+%] (.+)"
-local regexPetNameInPetsMenu = "%[Lvl %d+%] (.+)%]"
-local regexPetNameInAutopet = "%[Lvl %d+%]%s+(.-)!"
-local regexPetNameInManualSummon = "You summoned your (.-)!"
+-- local regexPetNameInPetsMenu = "%[Lvl %d+%] (.+)%]"
+local regexes = {
+  petNmeInAutopet = "%[Lvl %d+%] §.(.-)§.!",
+  petNameInManualSummon = "You summoned your (.-)!"
+}
 
--- inf stands for info but i like 3 letter words for naming so cope with it
+-- i like 3 letter words for naming schemes so cope with this bs naming scheme
+-- inf stands for info
 ---@class inf
 ---@field location string
 ---@field pet string
----@field visitors number | string | nil
+---@field visitors number
 ---@field spray string | nil
 ---@field pestCd number | string | nil
 ---@field pos {x: number, y: number, z: number}
----@field velocity number | string
+---@field velocity number
 ---@field blockBelowFeet string
 
 ---@class All
@@ -21,11 +25,11 @@ local all = {
   inf = {
     location = idk,
     pet = idk,
-    visitors = "idk",
-    spray = "idk",
-    pestCd = "idk",
-    pos = {0,0,0},
-    velocity = idk,
+    visitors = idkInt,
+    spray = idk,
+    pestCd = idk,
+    pos = {-1,-1,-1},
+    velocity = idkInt,
     blockBelowFeet = idk
   },
   clr = {
@@ -45,6 +49,15 @@ local all = {
 ---@return nil
 local function grint(string)
   print("[goon] " .. string)
+end
+--------------------------------------------------------------------------------
+
+---@param text string
+---@return string
+function all.remMcColors(text)
+  if not text then return "" end
+  local clean, _ = string.gsub(text, "§.", "")
+  return string.match(clean, "^%s*(.-)%s*$") -- strip leading/trailing spaces
 end
 
 --------------------------------------------------------------------------------
@@ -250,7 +263,7 @@ end
 ---@param txt string
 ---@return string | nil
 local function updatePetFromManualSummon(txt)
-  local match = txt:match(regexPetNameInManualSummon)
+  local match = txt:match(regexes.petNameInManualSummon)
   local ret = nil
   if match then
     ret = tostring(match)
@@ -261,7 +274,7 @@ end
 ---@param txt string
 ---@return string | nil
 local function updatePetFromAutopet(txt)
-  local match = txt:match(regexPetNameInAutopet)
+  local match = txt:match(regexes.petNmeInAutopet)
   local ret = nil
   if match then
     ret = tostring(match)
@@ -317,87 +330,11 @@ end
 
 --------------------------------------------------------------------------------
 
--- allows you to swap pet using the /petsmenu inventory
--- it's kinda buggy and slow
--- it does work but rarely leaves the petsmenu open, thus softlocking
-
----@param petName string
+---@param value number
+---@param target number
 ---@return boolean
-function all.setPet(petName)
-
-  -- request already satisfied or early exit
-  if all.inf.pet == petName then
-    return true
-  end
-
-  -- handle cooldown
-  if all.dump.setPetCd and all.dump.setPetCd > 0 then
-    all.dump.setPetCd = all.dump.setPetCd - 1
-    return false
-  end
-
-  -- existing instance
-  if all.dump.setPet == true then
-    return false
-  end
-
-  -- new instance
-  all.dump.setPetName = petName
-  all.dump.setPet = true
-  return false
-
-end
-
-local function _setPet(player)
-
-  -- request satified
-  if all.inf.pet == all.dump.setPetName then
-    all.dump.setPet = false
-    return
-  end
-
-  if all.dump.setPet_petsCmdCd then
-    all.dump.setPet_petsCmdCd = all.dump.setPet_petsCmdCd - 1
-  end
-  local title = player.inventory.getChestTitle()
-
-  -- open pets menu with cooldown
-  if title ~= "Pets"
-    and
-    (
-    not all.dump.setPet_petsCmdCd or
-    all.dump.setPet_petsCmdCd <= 0
-  ) then
-    player.sendMessage("/pets")
-    all.dump.setPet_petsCmdCd = 60
-    return false
-  end
-
-  -- iterate through all pets
-  for i = 10, 43 do
-    local pet = player.inventory.getStackFromContainer(i)
-    if not pet then goto skip end
-    if pet.name ~= "Player Head" then goto skip end
-
-    local dName = removeMinecraftColors(pet.display_name)
-    local name = dName:match(regexPetNameInPetsMenu)
-    if not name then goto skip end
-    if strip(name) ~= all.dump.setPetName then goto skip end
-
-    if not isTextInLore("Left-click to summon!", pet.lore, true) then
-      goto skip
-    end
-
-    player.inventory.leftClick(i)
-    all.dump.setPet = false
-    all.dump.setPet_petsCmdCd = 0
-    all.dump.setPetCd = 60
-
-    do return true end
-    ::skip::
-  end
-  return false
-
+function all.isValueMultipleOfTarget(value, target)
+  return value % target == 0
 end
 
 --------------------------------------------------------------------------------
@@ -434,7 +371,7 @@ registerClientTickPost(function()
   -- inf shit
   -- getTabInfo(player)
   all.inf.pos = player.getPos() or idk
-  all.inf.velocity = getVelocity() or idk
+  all.inf.velocity = getVelocity() or idkInt
   all.inf.location = player.getRawLocation() or idk
   all.inf.blockBelowFeet = _getBlockBelowFeet(world) or idk
 
@@ -455,10 +392,18 @@ registerMessageEvent(function(text, overlay)
   if overlay then return end
   if not text then return end
 
-  -- local txt = removeMinecraftColors(text)
+  local txt = all.remMcColors(text)
+  all.tmp.test = txt
 
-  all.inf.pet = updatePetFromAutopet(text) or idk
-  all.inf.pet = updatePetFromManualSummon(text) or idk
+  -- TODO: fix pet not updating
+  -- update pet from autopet/manual summon
+  local ap = updatePetFromAutopet(txt)
+  local ms = updatePetFromManualSummon(txt)
+  if ap then
+    all.inf.pet = ap
+  elseif ms then
+    all.inf.pet = ms
+  else all.inf.pet = "hi" end
 
   -- if text then print("text: " .. tostring(text)) end
   -- if overlay then print("overlay: " .. tostring(overlay)) end
