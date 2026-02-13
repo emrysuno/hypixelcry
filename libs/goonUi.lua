@@ -1,10 +1,11 @@
 local all = {}
 all.config = {
-  baseXOffset = 4,
-  baseYOffset = 4,
+  baseOffset = {4, 4},
   lineSpacing = 12,     -- Vertical distance between lines
+  scale = 1,
   defaultRGB = { 255, 255, 255 }
 }
+
 all.content = {
   { text = "hello with gap below", rgb = { 255, 0, 0 }, extraSpace = 4 },
   { text = "hello in red", rgb = {255, 0, 0} },
@@ -15,16 +16,16 @@ all.content = {
 local function infoUi(context)
 
   local data = all.content
-  local currentY = all.config.baseYOffset
+  local currentY = all.config.baseOffset[2]
 
   for _, line in ipairs(data) do
 
     local color = line.rgb or all.config.defaultRGB
 
     context.renderText({
-      x = all.config.baseXOffset,
+      x = all.config.baseOffset[1],
       y = currentY,
-      scale = 1,
+      scale = all.config.scale,
       text = line.text,
       red = color[1],
       green = color[2],
