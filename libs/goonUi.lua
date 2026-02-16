@@ -1,6 +1,7 @@
 local all = {}
 all.config = {
   baseOffset = {4, 4},
+  gapInLinesFromTop = 0,
   lineSpacing = 12,     -- Vertical distance between lines
   scale = 1,
   defaultRGB = { 255, 255, 255 }
@@ -16,7 +17,7 @@ all.content = {
 local function infoUi(context)
 
   local data = all.content
-  local currentY = all.config.baseOffset[2]
+  local currentY = all.config.baseOffset[2] + (all.config.gapInLinesFromTop * all.config.lineSpacing)
 
   for _, line in ipairs(data) do
 
