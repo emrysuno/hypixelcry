@@ -7,6 +7,10 @@ local gog = require("goonLog.lua")
 
 -- config ----------------------------------------------------------------------
 
+-- key to toggle the script (doesn't stop when its killing pests)
+-- i forgot where to find these but 343 == windows key
+local masterKeyToggle = 343
+
 -- options for gdirection:
 -- "AS" or "SD" (S based movement farms like cane sunflower rose and shit)
 -- or "AD" (side to side based farms)
@@ -65,6 +69,7 @@ local returnBlockBelowFeet = "redstone_block"
 -- config end ------------------------------------------------------------------
 
 -- TODO: fix aim when not correct
+-- TODO: fix script not stopping moving/attacking when toggled (same but doesn't stop at all when killing pests)
 
 gut.tgl.pest = true
 gut.tgl.pestCd = true
@@ -554,7 +559,7 @@ registerClientTickPost(function()
 end)
 
 registerKeyEvent(function(key, action)
-  if key == 343 and action == "Release" then
+  if key == masterKeyToggle and action == "Release" then
     toggleSys()
     gog.info("toggled " .. (mainToggle and "on" or "off"))
   end
