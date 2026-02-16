@@ -1,10 +1,11 @@
 local idk = "idk"
 local idkInt = -1
--- local regexPetNameInTab = "%[Lvl %d+%] (.+)"
--- local regexPetNameInPetsMenu = "%[Lvl %d+%] (.+)%]"
+local idkPos = { x = -1, y = -1, z = -1 }
 local regexes = {
-  petNmeInAutopet = "%[Lvl %d+%] §.(.-)§.!",
-  petNameInManualSummon = "You summoned your (.-)!"
+  petNameInAutopet = "%[Lvl %d+%] §.(.*)§.!",
+  petNameInManualSummon = "You summoned your (.-)!",
+  petNameInTab = "%[Lvl %d+%] (.+)",
+  petNameInPetsMenu = "%[Lvl %d+%] (.+)%]"
 }
 
 -- i like 3 letter words for naming schemes so cope with this bs naming scheme
@@ -12,12 +13,14 @@ local regexes = {
 ---@class inf
 ---@field location string
 ---@field pet string
+---@field petName string
 ---@field visitors number
 ---@field spray string | nil
----@field pestCd number | string | nil
+---@field pestCd number
 ---@field pos {x: number, y: number, z: number}
 ---@field velocity number
 ---@field blockBelowFeet string
+---@field rain number
 
 ---@class All
 ---@field inf inf
@@ -25,17 +28,30 @@ local all = {
   inf = {
     location = idk,
     pet = idk,
+    petName = idk,
     visitors = idkInt,
     spray = idk,
-    pestCd = idk,
-    pos = {-1,-1,-1},
+    pestCd = idkInt,
+    pos = idkPos,
     velocity = idkInt,
-    blockBelowFeet = idk
+    blockBelowFeet = idk,
+    rain = idkInt
+  },
+  tgl = {
+    location = false,
+    pet = false,
+    visitors = false,
+    spray = false,
+    pestCd = false,
+    pos = false,
+    velocity = false,
+    blockBelowFeet = false,
+    rain = false
   },
   clr = {
     green = "§a",
     red = "§c",
-    white = "§7"
+    white = "§f"
   },
   dump = {},
   tmp = {},
@@ -70,7 +86,7 @@ function all.tableToString(table)
 
     for k, v in pairs(table) do
         if not first then result = result .. ", " end
-        -- Format as "key = value"
+        -- format as "key = value"
         result = result .. tostring(k) .. " = " .. tostring(v)
         first = false
     end
@@ -110,7 +126,7 @@ end
 
 ---@param hRange number
 ---@param vRange number
----@param excludeEntities table
+---@param excludeEntities table | nil
 function all.getNearbyEntities(hRange, vRange, excludeEntities)
 
   local mobList = {}
@@ -122,7 +138,7 @@ function all.getNearbyEntities(hRange, vRange, excludeEntities)
     -- skip the local player
     if entity
     and entity.uuid ~= player.entity.uuid
-    and not excludeEntities[entity.type]
+    and not (excludeEntities and excludeEntities[entity.type])
     then
       local ex, ey, ez = entity.x, entity.y, entity.z
 
@@ -130,11 +146,16 @@ function all.getNearbyEntities(hRange, vRange, excludeEntities)
       local horizontalDist = math.sqrt((playerPos.x - ex)^2 + (playerPos.z - ez)^2)
       local verticalDist = math.abs(playerPos.y - ey)
 
+      -- pass if range is nil OR if entity is within range
+      local hPass = (not hRange) or (horizontalDist <= hRange)
+      local vPass = (not vRange) or (verticalDist <= vRange)
+
       -- check if within defined ranges
-      if horizontalDist <= hRange and verticalDist <= vRange then
+      if hPass and vPass then
         table.insert(mobList, {
-          name = entity.display_name or entity.name or "Unknown",
-          type = entity.type or "Unknown",
+          name = entity.name or idk,
+          display_name = entity.display_name or idk,
+          type = entity.type or idk,
           uuid = entity.uuid,
           hDist = math.floor(horizontalDist * 10) / 10, -- rounded to 1 decimal
           vDist = math.floor(verticalDist * 10) / 10,
@@ -184,13 +205,17 @@ local function isTextInLore(text, lore, itrInReverse)
   return false
 end
 
---------------------------------------------------------------------------------
+-- getTabInfo ------------------------------------------------------------------
+-- this is for getting certain info from tab and storing them directly in
+-- inf/dump
 
 ---@param s string
 ---@return integer
 local function _handleTimeNumbers(s)
   if s == "MAX PESTS" then return -1 end
   if s == "READY" then return 0 end
+  if s == nil then return -1 end
+  if s == "No rain!" then return 0 end
   local min = s:match("(%d*)m") or 0
   local sec = s:match("(%d+)s") or 0
   return (tonumber(min) * 60) + tonumber(sec)
@@ -201,33 +226,45 @@ local function _getTabInfo(key, line, regex, fallbackValue, isNumber, dump)
   if not match then return end
 
   local value = isNumber and (tonumber(match) or fallbackValue) or match
-  local lastKey = "last" .. key .. "FromGetTabInfo"
-  if all.dump[lastKey] == value then return end
 
   if not dump then all.inf[key] = value or fallbackValue
   else all.dump[key] = value or fallbackValue end
-  all.dump[lastKey] = value
 end
 
-local function getTabInfo(player)
+local function getTabInfo()
 
   local tabBody = (player.getTab()).body
   if not tabBody then return end
   for _, lineRaw in ipairs(tabBody) do
 
-    local line = removeMinecraftColors(lineRaw)
+    local line = all.remMcColors(lineRaw)
 
     -- global
-    _getTabInfo("pet", line, regexPetNameInTab)
+    if (all.tgl.pet) and (all.inf.pet == idk) then
+      _getTabInfo("pet", line, regexes.petNameInTab)
+    end
 
     -- garden
-    _getTabInfo("visitors", line, "Visitors: %((%d+)%)", idk)
-    _getTabInfo("spray", line, "Spray: (.+)", idk)
-    _getTabInfo("pestAlive", line, "Alive: (%d)", -1, true)
+    if all.tgl.visitors then
+      _getTabInfo("visitors", line, "Visitors: %((%d+)%)", idk)
+    end
+    if all.tgl.spray then
+      _getTabInfo("spray", line, "Spray: (.+)", idk)
+    end
+    -- _getTabInfo("pestAlive", line, "Alive: (%d)", -1, true)
+    if all.tgl.pestCd then
+      _getTabInfo("pestCdRaw", line, "Cooldown: (.*)", "MAX PESTS", false, true)
+      if all.dump.pestCdRaw then
+        all.inf.pestCd = _handleTimeNumbers(all.dump.pestCdRaw)
+      end
+    end
 
-    _getTabInfo("pestCdRaw", line, "Cooldown: (.*)", "MAX PESTS", false, true)
-    if all.dump.pestCdRaw then
-      all.inf.pestCd = _handleTimeNumbers(all.dump.pestCdRaw)
+    -- fishing
+    if all.tgl.rain then
+      _getTabInfo("rainRaw", line, "Rain: (.*)", nil, false, true)
+      if all.dump.rainRaw then
+        all.inf.rain = _handleTimeNumbers(all.dump.rainRaw)
+      end
     end
 
     -- test stuff
@@ -274,7 +311,7 @@ end
 ---@param txt string
 ---@return string | nil
 local function updatePetFromAutopet(txt)
-  local match = txt:match(regexes.petNmeInAutopet)
+  local match = txt:match(regexes.petNameInAutopet)
   local ret = nil
   if match then
     ret = tostring(match)
@@ -360,20 +397,29 @@ function all.waiting(uid, ticks)
   return true
 end
 
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
+-- registers -------------------------------------------------------------------
 
 registerClientTickPost(function()
 
   updateCooldown()
 
-  -- inf shit
-  -- getTabInfo(player)
-  all.inf.pos = player.getPos() or idk
-  all.inf.velocity = getVelocity() or idkInt
-  all.inf.location = player.getRawLocation() or idk
-  all.inf.blockBelowFeet = _getBlockBelowFeet(world) or idk
+  getTabInfo()
+
+  if all.tgl.pos then
+    all.inf.pos = player.getPos() or idkPos
+  end
+
+  if all.tgl.velocity then
+    all.inf.velocity = getVelocity() or idkInt
+  end
+
+  if all.tgl.location then
+    all.inf.location = player.getRawLocation() or idk
+  end
+
+  if all.tgl.blockBelowFeet then
+    all.inf.blockBelowFeet = _getBlockBelowFeet(world) or idk
+  end
 
   -- if all.dump.playerInputStopAllValue == true then
   --   _playerInputStopAll(player)
@@ -387,23 +433,22 @@ end)
 
 --------------------------------------------------------------------------------
 
-registerMessageEvent(function(text, overlay)
+registerMessageEvent(function(text)
 
-  if overlay then return end
   if not text then return end
 
-  local txt = all.remMcColors(text)
-  all.tmp.test = txt
-
-  -- TODO: fix pet not updating
-  -- update pet from autopet/manual summon
-  local ap = updatePetFromAutopet(txt)
-  local ms = updatePetFromManualSummon(txt)
-  if ap then
-    all.inf.pet = ap
-  elseif ms then
-    all.inf.pet = ms
-  else all.inf.pet = "hi" end
+  if all.tgl.pet then
+    local ap = updatePetFromAutopet(text)
+    local ms = updatePetFromManualSummon(text)
+    if ap then
+      all.inf.pet = ap
+      all.inf.petName = all.remMcColors(ap)
+    end
+    if ms then
+      all.inf.pet = ms
+      all.inf.petName = all.remMcColors(ms)
+    end
+  end
 
   -- if text then print("text: " .. tostring(text)) end
   -- if overlay then print("overlay: " .. tostring(overlay)) end
