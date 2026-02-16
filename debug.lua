@@ -1,6 +1,17 @@
 local gut = require("goonUtils.lua")
 local gui = require("goonUi.lua")
 
+-- lib config ------------------------------------------------------------------
+
+gui.config.gapInLinesFromTop = 1
+gut.tgl.pet = true
+gut.tgl.pos = true
+gut.tgl.velocity = true
+gut.tgl.location = true
+gut.tgl.blockBelowFeet = true
+gut.tgl.rain = true
+
+-- temp
 local ignoreEntitiesByType = gut.addPrefixToATableOfStrings("entity.minecraft.", {
   "experience_orb",
   "fishing_bobber",
@@ -23,12 +34,31 @@ local ignoreEntitiesByType = gut.addPrefixToATableOfStrings("entity.minecraft.",
   "mooshroom"
 })
 
+local p = "idk"
+
+-- registerSpawnParticle(function(data)
+--   local id = data.id -- number
+--   p = tostring(id)
+--
+--   local x = data.x -- number
+--   local y = data.y -- number
+--   local z = data.z -- number
+--
+--   local x_dist = data.x_dist -- number
+--   local y_dist = data.y_dist -- number
+--   local z_dist = data.z_dist -- number
+--
+--   local max_speed = data.max_speed-- number
+--   local count = data.count-- number
+--
+-- end)
+
 register2DRenderer(function(ctx)
 
-  local mobs = gut.getNearbyEntities(5, 5, ignoreEntitiesByType)
+  local mobs = gut.getNearbyEntities(5, 5)
   local mobDisplay = #mobs
   for _, mob in ipairs(mobs) do
-    mobDisplay = mobDisplay .. ", " .. mob.type
+    mobDisplay = mobDisplay .. ", " .. mob.type .. " " .. mob.name .. " " .. mob.display_name
   end
   mobDisplay = mobDisplay
 
@@ -45,13 +75,18 @@ register2DRenderer(function(ctx)
       gut.getColoredStatusInStringOfAFunction("D", player.input.isPressedRight()) .. " " ..
       gut.getColoredStatusInStringOfAFunction("C", player.isSneaking())
     )},
-    { text = gut.getColoredStatusInStringOfAFunction("rod", player.fishHook, true) },
-    { text = "pet: " .. gut.inf.pet },
+    { text = gut.getColoredStatusInStringOfAFunction("rod", player.fishHook, false) },
+
+    -- { text = "pet: " .. gut.inf.pet .. gut.clr.white .. " > " .. gut.inf.petName },
     { text = "entities nearby: " .. mobDisplay },
-    { text = "pos: " .. gut.tableToString(gut.inf.pos) },
-    { text = "vel: " .. gut.inf.velocity },
-    { text = "location: " .. gut.inf.location },
-    { text = "test: " .. tostring(gut.tmp.test) }
+    { text = p },
+    -- { text = "pos: " .. gut.tableToString(gut.inf.pos) },
+    -- { text = "vel: " .. gut.inf.velocity },
+    -- { text = "location: " .. gut.inf.location },
+    -- { text = "blockBelowFeet: " .. gut.inf.blockBelowFeet },
+    -- { text = "rain: " .. gut.inf.rain },
+    -- { text = "title: " .. tostring(player.inventory.getChestTitle()) }
   }
 
 end)
+
