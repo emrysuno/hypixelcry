@@ -7,22 +7,60 @@ local gog = require("goonLog.lua")
 
 -- config ----------------------------------------------------------------------
 
+-- options for gdirection:
+-- "AS" or "SD" (S based movement farms like cane sunflower rose and shit)
+-- or "AD" (side to side based farms)
+
+-- the A/S/D determine the keys hence direction which u want to move towards
+-- script automatically turns n shit
+local gdirection = "AD"
+
+-- whether to use a key to move to the next farming line
+local tglChangingDirection = true
+-- which direction to move
+local changingDirection = "W"
+
+-- options for return direction: "W" or "A" or "S" or "D"
+-- this just means which direction u wanna move in when u are returning hence restarting the farm
+-- this is triggered when u are standing over the
+-- "returnBlockBelowFeet" block (look at the bottom of config)
+local returnDirection = "S"
+
+-- toggle stuff to do
+local tglSpray = true -- use spray on plots automatically or not
+local tglRodSwap = true -- swap pets for spawning pests when pest cooldown is almost ready or not
+
+-- slot numbers should be 1 less than what u think they are
+-- like the sb menu is in slot 9 but here we'd put it "8"
 local toolSlot = 0
 local rodSwapSlot = 2
 local spraySlot = 3
 
+-- NOTEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
+-- non case sensitive (capitalization doesn't matter)
+-- you need 2 auto pet rules whenever u cast rod for these 2 pets
+-- what pet to switch to when pest cooldown is close to ready
 local pestSpawnPet = "Blaze"
+-- what pet to switch to when farming (pest cooldown is above 5 seconds)
 local farmPet = "Ghoul"
 
+-- yaw and pitch u want to farm at
 local gyaw = 135
 local gpitch = 0
-local groundHeight = 71
+
+-- the player Y level when u are standing in the bottom most location in the farm
+local groundHeightMin = 71
+-- same but top most layer's Y number
+local groundHeightMax = 72
+
+-- the amount of pests when you want to start killing them
 local pestsToStartKill = 1
 
 local returnBlockBelowFeet = "redstone_block"
 
-local turnAxis = -238.700
-local turnAxis2 = 237.700
+-- ignore these
+-- local turnAxis = -238.700
+-- local turnAxis2 = 237.700
 
 -- config end ------------------------------------------------------------------
 
@@ -46,7 +84,7 @@ local mainToggle = false
 local spray = "default"
 local sprayTime = 0
 local wasKillingState = "left"
-local pestCooldown = 0
+-- local pestCooldown = 0
 
 local function toggleSys()
   mainToggle = not mainToggle
@@ -72,6 +110,7 @@ local last_pos = nil
 local time_between_updates = 0.02
 
 local state = "left"
+local lastState = "left"
 local stopped = false
 local teleported = false
 
@@ -145,7 +184,7 @@ end)
 --   context.renderText(start_text)
 -- end)
 
-local visitors = 0
+-- local visitors = 0
 
 register2DRenderer(function(context)
 
@@ -161,7 +200,7 @@ register2DRenderer(function(context)
     { text = "pet: " .. tostring(gut.inf.pet) },
     { text = "pest cd: " .. gut.inf.pestCd },
     { text = "spray: " .. gut.inf.spray },
-    -- { text = "[ Debug ]" },
+    { text = "[ Debug ]" },
     -- { text = "pest status: " .. pest_fly.getState() },
     -- { text = "vel: " .. (gut.inf.velocity or "idk") },
     -- { text = "anyScreen: " .. gut.dump.anyScreen },
@@ -173,7 +212,7 @@ register2DRenderer(function(context)
     -- { text = "pestCd: " .. (gut.inf.pestCd or "idk") },
     -- { text = "pos: " .. (gut.inf.pos.x or "idk") .. ", " .. (gut.inf.pos.y or "idk") .. ", " .. (gut.inf.pos.z or "idk") },
     -- { text = "block: " .. (gut.inf.blockBelowFeet or "idk") },
-    -- { text = "state: " .. (state or "idk") }
+    { text = "state: " .. (state or "idk") }
   }
   gui.content = guiContent
 
@@ -208,20 +247,20 @@ registerClientTickPost(function()
   local tabBody = (player.getTab()).body
   if not tabBody then return end
 
-  for _, line in ipairs(tabBody) do
-    local remLine = removeMinecraftColors(line)
-
-    local vis = string.match(remLine, "Visitors: %((%d+)%)")
-    if vis then visitors = tonumber(vis) or -1 end
-
-    local spra = string.match(remLine, "Spray: (.+)")
-    if spra then spray = tostring(spra) or "undefined" end
-    local pestCd = string.match(remLine, "Cooldown: (.+)")
-    if pestCd then pestCooldown = tostring(pestCd) or -1 end
-    -- local pe = string.match(remLine, "%[Lvl %d+%] (.+)")
-    -- if pe then pet = tostring(pe) or "undefined" end
-
-  end
+  -- for _, line in ipairs(tabBody) do
+  --   local remLine = removeMinecraftColors(line)
+  --
+  --   local vis = string.match(remLine, "Visitors: %((%d+)%)")
+  --   if vis then visitors = tonumber(vis) or -1 end
+  --
+  --   local spra = string.match(remLine, "Spray: (.+)")
+  --   if spra then spray = tostring(spra) or "undefined" end
+  --   local pestCd = string.match(remLine, "Cooldown: (.+)")
+  --   if pestCd then pestCooldown = tostring(pestCd) or -1 end
+  --   -- local pe = string.match(remLine, "%[Lvl %d+%] (.+)")
+  --   -- if pe then pet = tostring(pe) or "undefined" end
+  --
+  -- end
 
   if mainToggle ~= true then return end
 
@@ -241,7 +280,7 @@ registerClientTickPost(function()
         state = wasKillingState
       end
 
-      if spray == "None" then
+      if tglSpray and spray == "None" then
         sprayTime = sprayTime + 1
         if sprayTime < 29 then return end
         if spray ~= "None" then sprayTime = 0 return end
@@ -295,13 +334,13 @@ registerClientTickPost(function()
       --   rotations.stop()
       --   return false
       -- end
-      if pos.y == groundHeight or pos.y == groundHeight + 1 then
+      if pos.y >= groundHeightMin or pos.y <= groundHeightMax then
 
-        if gut.inf.pestCd <= 5 and gut.inf.pet ~= pestSpawnPet then
+        if tglRodSwap and gut.inf.pestCd <= 5 and string.lower(gut.inf.pet) ~= string.lower(pestSpawnPet) then
           if not gut.onCooldown("petSwap", 40) then
             player.input.silentUse(rodSwapSlot)
           end
-        elseif gut.inf.pestCd > 10 and gut.inf.pet ~= farmPet then
+        elseif tglRodSwap and gut.inf.pestCd > 10 and string.lower(gut.inf.pet) ~= string.lower(farmPet) then
           if not gut.onCooldown("petSwap", 40) then
             player.input.silentUse(rodSwapSlot)
           end
@@ -334,12 +373,19 @@ registerClientTickPost(function()
             if gut.inf.blockBelowFeet == returnBlockBelowFeet then
               state = "return"
               goto alright
-            elseif state == "left" then
-              state = "right"
-              -- player.addMessage("farming back")
-            else
-              state = "left"
-              -- player.addMessage("farming front")
+            -- elseif state == "left" then
+            --   state = "right"
+            -- elseif state == "right" then
+            --   state = "left"
+            elseif state == "changing" then
+              if lastState == "left" then
+                state = "right"
+              elseif lastState == "right" then
+                state = "left"
+              end
+            elseif tglChangingDirection then
+              lastState = state
+              state = "changing"
             end
           end
         end
@@ -350,21 +396,101 @@ registerClientTickPost(function()
         -- player.input.setPressedForward(true)
         player.input.setPressedAttack(true)
         if state == "left" then
-          player.input.setPressedLeft(false)
-          player.input.setPressedForward(false)
-          player.input.setPressedBack(false)
-          player.input.setPressedRight(true)
+
+          if gdirection == "SD" then
+            player.input.setPressedLeft(false)
+            player.input.setPressedForward(false)
+            player.input.setPressedBack(true)
+            player.input.setPressedRight(false)
+          end
+          if gdirection == "AS" then
+            player.input.setPressedLeft(true)
+            player.input.setPressedForward(false)
+            player.input.setPressedBack(false)
+            player.input.setPressedRight(false)
+          end
+          if gdirection == "AD" then
+            player.input.setPressedLeft(true)
+            player.input.setPressedForward(false)
+            player.input.setPressedBack(false)
+            player.input.setPressedRight(false)
+          end
+
         elseif state == "right" then
-          player.input.setPressedLeft(false)
-          player.input.setPressedForward(false)
-          player.input.setPressedBack(true)
-          player.input.setPressedRight(false)
+
+          if gdirection == "SD" then
+            player.input.setPressedLeft(false)
+            player.input.setPressedForward(false)
+            player.input.setPressedBack(false)
+            player.input.setPressedRight(true)
+          end
+          if gdirection == "AS" then
+            player.input.setPressedLeft(false)
+            player.input.setPressedForward(false)
+            player.input.setPressedBack(true)
+            player.input.setPressedRight(false)
+          end
+          if gdirection == "AD" then
+            player.input.setPressedLeft(false)
+            player.input.setPressedForward(false)
+            player.input.setPressedBack(false)
+            player.input.setPressedRight(true)
+          end
+
+        elseif state == "changing" then
+
+          if changingDirection == "W" then
+            player.input.setPressedLeft(false)
+            player.input.setPressedForward(true)
+            player.input.setPressedBack(false)
+            player.input.setPressedRight(false)
+          end
+          if changingDirection == "A" then
+            player.input.setPressedLeft(true)
+            player.input.setPressedForward(false)
+            player.input.setPressedBack(false)
+            player.input.setPressedRight(false)
+          end
+          if changingDirection == "S" then
+            player.input.setPressedLeft(false)
+            player.input.setPressedForward(false)
+            player.input.setPressedBack(true)
+            player.input.setPressedRight(false)
+          end
+          if changingDirection == "D" then
+            player.input.setPressedLeft(false)
+            player.input.setPressedForward(false)
+            player.input.setPressedBack(false)
+            player.input.setPressedRight(true)
+          end
+
         elseif state == "return" then
-          player.input.setPressedAttack(false)
-          player.input.setPressedForward(true)
-          player.input.setPressedLeft(true)
-          player.input.setPressedRight(false)
-          player.input.setPressedBack(false)
+
+          if gdirection == "W" then
+            player.input.setPressedLeft(false)
+            player.input.setPressedForward(true)
+            player.input.setPressedBack(false)
+            player.input.setPressedRight(false)
+          end
+          if gdirection == "A" then
+            player.input.setPressedLeft(true)
+            player.input.setPressedForward(false)
+            player.input.setPressedBack(false)
+            player.input.setPressedRight(false)
+          end
+          if gdirection == "S" then
+            player.input.setPressedLeft(false)
+            player.input.setPressedForward(false)
+            player.input.setPressedBack(true)
+            player.input.setPressedRight(false)
+          end
+          if gdirection == "D" then
+            player.input.setPressedLeft(false)
+            player.input.setPressedForward(false)
+            player.input.setPressedBack(false)
+            player.input.setPressedRight(true)
+          end
+
         end
         last_pos = pos
       elseif stopped == false then
