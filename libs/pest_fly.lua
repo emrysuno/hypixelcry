@@ -244,7 +244,7 @@ registerClientTickPost(function()
       lockFailsafe = true
       currentState = "Down2"
       player.sendCommand("/warp garden")
-      player.addMessage("farming now from pest_fly")
+      -- player.addMessage("farming now from pest_fly")
       teleported = true
     end
   elseif currentState == "Forward" then
