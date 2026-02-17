@@ -23,6 +23,10 @@ local SLOTS = {
   EW = 6
 }
 
+-- position yourself in a specific spot
+-- also the toggle for auto-buying rain
+local togglePositioning = true
+
 -- tick ranges (random cooldown before doing stuff)
 local CATCH = {2, 4} -- for catching after detection
 local ATTACK = {1, 2} -- for attacking after catching
@@ -32,8 +36,8 @@ local RECAST = {2, 5} -- for recasting after catching
 
 local ew = {
   fishing = {
-    block = { -304.5, 72.5, -55.5 },
-    pos = { x = -304.5, y = 73, z = -55.5 }
+    block = { -307.5, 71.5, -60.5 },
+    pos = { x = -307.5, y = 72, z = -60.5 }
   },
   rain = {
     block = { -304.5, 75.5, -76.5 },
@@ -194,16 +198,19 @@ registerClientTickPre(function()
     end
 
     -- position
-    if pos.x ~= ew.fishing.pos.x
+    if togglePositioning
+    and (pos.x ~= ew.fishing.pos.x
     or pos.y ~= ew.fishing.pos.y
-    or pos.z ~= ew.fishing.pos.z
+    or pos.z ~= ew.fishing.pos.z)
     then
       stateSwitch(states.tpingToFishing)
       return
     end
 
     -- low rain detection
-    if gut.inf.rain < 10 then
+    if togglePositioning
+    and gut.inf.rain < 10
+    then
       stateSwitch(states.tpingToRain)
       return
     end
@@ -356,6 +363,12 @@ registerClientTickPre(function()
     and pos.z ~= ew.rain.pos.z
     then
       stateSwitch(states.tpingToRain)
+      return
+    end
+
+    -- look at npc
+    if curRot.yaw ~= -179.0 then
+      rot.rotateToYawPitch(-179, curRot.pitch)
       return
     end
 
