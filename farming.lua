@@ -7,36 +7,41 @@ local gog = require("goonLog.lua")
 
 -- config ----------------------------------------------------------------------
 
+-- keep this diabled else crash
+local tglGui = false
+
 -- key to toggle the script (doesn't stop when its killing pests)
--- i forgot where to find these but 343 == windows key
+-- find them in this channel https://discord.com/channels/1418100297615802439/1440138302777987133
 local masterKeyToggle = 343
 
--- options for gdirection:
--- "AS" or "SD" (S based movement farms like cane sunflower rose and shit)
--- or "AD" (side to side based farms)
-
--- the A/S/D determine the keys hence direction which u want to move towards
--- script automatically turns n shit
-local gdirection = "AD"
+local gdirections = {
+  "left & back",
+  "right & back",
+  "left & right"
+}
+local gdirection = gdirections[2]
 
 -- whether to use a key to move to the next farming line
-local tglChangingDirection = true
+local tglChangingDirection = false
 -- which direction to move
-local changingDirection = "W"
+local changingDirections = {
+  "W", "A", "S", "D"
+}
+local changingDirection = 0
 
 -- options for return direction: "W" or "A" or "S" or "D"
 -- this just means which direction u wanna move in when u are returning hence restarting the farm
 -- this is triggered when u are standing over the
 -- "returnBlockBelowFeet" block (look at the bottom of config)
-local returnDirection = "S"
+local returnDirection = "W"
 
 -- toggle stuff to do
-local tglSpray = true -- use spray on plots automatically or not
-local tglRodSwap = true -- swap pets for spawning pests when pest cooldown is almost ready or not
+local tglSpray = false -- use spray on plots automatically or not
+local tglRodSwap = false -- swap pets for spawning pests when pest cooldown is almost ready or not
 
 -- slot numbers should be 1 less than what u think they are
 -- like the sb menu is in slot 9 but here we'd put it "8"
-local toolSlot = 0
+local toolSlot = 1
 local rodSwapSlot = 2
 local spraySlot = 3
 
@@ -50,15 +55,15 @@ local farmPet = "Ghoul"
 
 -- yaw and pitch u want to farm at
 local gyaw = 135
-local gpitch = 0
+local gpitch = 16.5
 
 -- the player Y level when u are standing in the bottom most location in the farm
-local groundHeightMin = 71
+local groundHeightMin = 67
 -- same but top most layer's Y number
-local groundHeightMax = 72
+local groundHeightMax = 69
 
 -- the amount of pests when you want to start killing them
-local pestsToStartKill = 1
+local pestsToStartKill = 9
 
 local returnBlockBelowFeet = "redstone_block"
 
@@ -190,6 +195,7 @@ end)
 -- end)
 
 -- local visitors = 0
+local state2 = "Farming"
 
 register2DRenderer(function(context)
 
@@ -217,13 +223,13 @@ register2DRenderer(function(context)
     -- { text = "pestCd: " .. (gut.inf.pestCd or "idk") },
     -- { text = "pos: " .. (gut.inf.pos.x or "idk") .. ", " .. (gut.inf.pos.y or "idk") .. ", " .. (gut.inf.pos.z or "idk") },
     -- { text = "block: " .. (gut.inf.blockBelowFeet or "idk") },
-    { text = "state: " .. (state or "idk") }
+    { text = "state: " .. (state or "idk") },
+    { text = "state2: " .. (state2 or "idk") }
   }
   gui.content = guiContent
 
 end)
 
-local state2 = "Farming"
 local timer = 0
 local tickForward = 0
 
@@ -391,6 +397,10 @@ registerClientTickPost(function()
             elseif tglChangingDirection then
               lastState = state
               state = "changing"
+            elseif state == "left" then
+              state = "right"
+            elseif state == "right" then
+              state = "left"
             end
           end
         end
@@ -402,19 +412,19 @@ registerClientTickPost(function()
         player.input.setPressedAttack(true)
         if state == "left" then
 
-          if gdirection == "SD" then
+          if gdirection == "right & back" then
             player.input.setPressedLeft(false)
             player.input.setPressedForward(false)
             player.input.setPressedBack(true)
             player.input.setPressedRight(false)
           end
-          if gdirection == "AS" then
+          if gdirection == "left & back" then
             player.input.setPressedLeft(true)
             player.input.setPressedForward(false)
             player.input.setPressedBack(false)
             player.input.setPressedRight(false)
           end
-          if gdirection == "AD" then
+          if gdirection == "left & right" then
             player.input.setPressedLeft(true)
             player.input.setPressedForward(false)
             player.input.setPressedBack(false)
@@ -423,19 +433,19 @@ registerClientTickPost(function()
 
         elseif state == "right" then
 
-          if gdirection == "SD" then
+          if gdirection == "right & back" then
             player.input.setPressedLeft(false)
             player.input.setPressedForward(false)
             player.input.setPressedBack(false)
             player.input.setPressedRight(true)
           end
-          if gdirection == "AS" then
+          if gdirection == "left & back" then
             player.input.setPressedLeft(false)
             player.input.setPressedForward(false)
             player.input.setPressedBack(true)
             player.input.setPressedRight(false)
           end
-          if gdirection == "AD" then
+          if gdirection == "left & right" then
             player.input.setPressedLeft(false)
             player.input.setPressedForward(false)
             player.input.setPressedBack(false)
@@ -471,25 +481,25 @@ registerClientTickPost(function()
 
         elseif state == "return" then
 
-          if gdirection == "W" then
+          if returnDirection == "W" then
             player.input.setPressedLeft(false)
             player.input.setPressedForward(true)
             player.input.setPressedBack(false)
             player.input.setPressedRight(false)
           end
-          if gdirection == "A" then
+          if returnDirection == "A" then
             player.input.setPressedLeft(true)
             player.input.setPressedForward(false)
             player.input.setPressedBack(false)
             player.input.setPressedRight(false)
           end
-          if gdirection == "S" then
+          if returnDirection == "S" then
             player.input.setPressedLeft(false)
             player.input.setPressedForward(false)
             player.input.setPressedBack(true)
             player.input.setPressedRight(false)
           end
-          if gdirection == "D" then
+          if returnDirection == "D" then
             player.input.setPressedLeft(false)
             player.input.setPressedForward(false)
             player.input.setPressedBack(false)
@@ -563,4 +573,100 @@ registerKeyEvent(function(key, action)
     toggleSys()
     gog.info("toggled " .. (mainToggle and "on" or "off"))
   end
+end)
+
+registerImGuiRenderEvent(function()
+
+  if not tglGui then return end
+
+  if imgui.begin("goon farming 2") then
+
+    -- checkbox, master toggle
+    local mainToggleChanged, mainToggleNew = imgui.checkbox("master toggle", mainToggle)
+    if mainToggleChanged then mainToggle = mainToggleNew end
+
+    -- listbox, movement direction
+    gdirection = imgui.listBox("ListBox", gdirection, gdirections)
+
+    -- checkbox + listbox, changing direction + toggle
+    local tglChangingDirectionChanged, tglChangingDirectionNew = imgui.checkbox("change lane", tglChangingDirection)
+    if tglChangingDirectionChanged then tglChangingDirection = tglChangingDirectionNew end
+    changingDirection = imgui.listBox("change lane direction", changingDirection, changingDirections)
+
+    returnDirection = imgui.listBox("restart direction", returnDirection, changingDirections)
+
+    local tglRodSwapChanged, tglRodSwapNew = imgui.checkbox("pet swap", tglRodSwap)
+    if tglRodSwapChanged then tglRodSwap = tglRodSwapNew end
+
+    local tglSprayChanged, tglSprayNew = imgui.checkbox("spray plot", tglSpray)
+    if tglSprayChanged then tglSpray = tglSprayNew end
+
+    local hoe, hoeNew = imgui.inputInt("hoe slot", toolSlot, 1, 1)
+    if hoe then
+      if hoeNew > 0 and hoeNew < 10 then
+        toolSlot = hoeNew
+      end
+    end
+
+    local rod, rodNew = imgui.inputInt("rod slot", rodSwapSlot, 1, 1)
+    if rod then
+      if rodNew > 0 and rodNew < 10 then
+        rodSwapSlot = rodNew
+      end
+    end
+
+    local sprayy, spraynew = imgui.inputInt("spray slot", spraySlot, 1, 1)
+    if sprayy then
+      if spraynew > 0 and spraynew < 10 then
+        spraySlot = spraynew
+      end
+    end
+
+    local pestSpawnPetChanged, pestSpawnPetNew = imgui.inputText("pest spawn pet", pestSpawnPet)
+    if pestSpawnPetChanged then pestSpawnPet = pestSpawnPetNew end
+
+    local farmPetChanged, farmPetNew = imgui.inputText("farm pet", farmPet)
+    if farmPetChanged then farmPet = farmPetNew end
+
+    local yaww, yawwNew = imgui.inputInt("yaw", gyaw, 15, 45)
+    if yaww then
+      if yawwNew >= -180.0 and yawwNew <= 179.9 then
+        gyaw = yawwNew
+      end
+    end
+
+    local pitchh, pitchhNew = imgui.inputFloat("pitch", gpitch, 15, 45, "%.3f")
+    if pitchh then
+      if pitchhNew >= -90 and pitchhNew <= 90 then
+        gpitch = pitchhNew
+      end
+    end
+
+    local ghmc, ghmcn = imgui.inputInt("lowest farm Y", groundHeightMin, 1, 8)
+    if ghmc then
+      if ghmcn >= -180 and ghmcn <= 180 then
+        groundHeightMin = ghmcn
+      end
+    end
+    local ghMc, ghMcn = imgui.inputInt("highest farm Y", groundHeightMax, 1, 8)
+    if ghMc then
+      if ghMcn >= -180 and ghMcn <= 180 then
+        groundHeightMax = ghMcn
+      end
+    end
+
+    local ptsk, ptskn = imgui.inputInt("pests to start killing", pestsToStartKill, 1, 1)
+    if ptsk then
+      if ptskn >= 1 and ptskn <= 8 then
+        pestsToStartKill = ptskn
+      end
+    end
+
+    local rtbf, rtbfn = imgui.inputText("block to detect below feet for restart", returnBlockBelowFeet)
+    if rtbf then returnBlockBelowFeet = rtbfn end
+
+  end
+
+  imgui.endBegin()
+
 end)
