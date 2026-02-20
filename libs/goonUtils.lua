@@ -49,9 +49,29 @@ local all = {
     rain = false
   },
   clr = {
+    reset = "§r",
+    bold = "§l",
+    strikeThrough = "§m",
+    underline = "§n",
+    italic = "§o",
+    obfuscated = "§k",
+
+    black = "§0",
+    blueDark = "§1",
+    greenDark = "§2",
+    aquaDark = "§3",
+    redDark = "§4",
+    purpleDark = "§5",
+    gold = "§6",
+    gray = "§7",
+    grayDark = "§8",
+    blue = "§9",
     green = "§a",
+    aqua = "§b",
     red = "§c",
-    white = "§f"
+    purpleLight = "§d",
+    yellow = "§e",
+    white = "§f",
   },
   dump = {},
   tmp = {},
@@ -92,6 +112,24 @@ function all.tableToString(table)
     end
 
     return result .. " }"
+end
+
+--------------------------------------------------------------------------------
+
+---@param nums number
+---@return number
+function all.roundUpToTwoDecimals(nums)
+
+  -- multiply by 100 to move two decimal places to the left
+  local multiplied = nums * 100
+
+  -- round up to the nearest whoe number using math.ceil
+  local roundedUp = math.ceil(multiplied)
+
+  -- divide by 100 to move the decimal point back to its original position
+  local ret = roundedUp / 100
+  return ret
+
 end
 
 --------------------------------------------------------------------------------
