@@ -41,6 +41,9 @@ local RECAST = {2, 5} -- for recasting after catching
 
 rot.setRotationSpeed(20)
 
+gnl.defaultUrgency = "critical"
+gnl.defaultTimeout = 0
+
 --- config end -----------------------------------------------------------------
 
 local ew = {
