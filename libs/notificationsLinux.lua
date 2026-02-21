@@ -30,7 +30,7 @@ notifications.defaultTimeout = 5000
 -- low / normal / critical
 notifications.defaultUrgency = "normal"
 
-function notifications.snowNotifty(title, message, urgency, timeout)
+function notifications.snowNotify(title, message, urgency, timeout)
   -- Используем encodeURIComponent через JavaScript если доступен
   -- или простую функцию кодирования
   local encodedTitle = simpleEncode(title)
