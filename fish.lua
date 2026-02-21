@@ -24,7 +24,7 @@ local SLOTS = {
   EW = 6
 }
 
-local lookDirection = { yaw = -90, pitch = -0 }
+local lookDirection = { yaw = -180, pitch = -0 }
 local alertWhenNotLookingAtDirection = true
 
 -- position yourself in a specific spot
@@ -88,7 +88,8 @@ local wait = 0
 local waitRotationAlert = 20
 local location = "idk"
 gog.config.logTypes.info.enabled = true
-gog.config.logTypes.debug.enabled = true
+gog.config.logTypes.debug.enabled = false
+gog.config.logTypes.critical.enabled = true
 gui.config.gapInLinesFromTop = 1
 gut.tgl.rain = true
 
@@ -250,7 +251,7 @@ registerClientTickPre(function()
     and tick > 70
     then
       stateSwitch(states.idle)
-      gog.debug("going idle cuz rod not out for 3.5s, while fishing")
+      gog.info("going idle cuz rod not out for 3.5s, while fishing")
       gnl.snowNotify("skyblock", "going idle")
     end
 
@@ -530,7 +531,13 @@ registerMessageEvent(function(text, overlay, json)
   if overlay then return end
   if json then return end
   if not text then return end
+
+  local txt = string.lower(text)
   -- print("                  =======>>>>>> " .. text)
+
+  if txt:find(player.getName(), 1, true) then
+    gnl.snowNotifty("skyblock", gut.remMcColors(text))
+  end
 
   if text == scs.carrot_king.str then
     scs.carrot_king.catches = scs.carrot_king.catches + 1
@@ -542,6 +549,7 @@ registerMessageEvent(function(text, overlay, json)
     scs.night_squid.catches = scs.night_squid.catches + 1
 
   end
+
 
 end)
 
