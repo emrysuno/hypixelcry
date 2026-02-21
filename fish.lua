@@ -253,9 +253,9 @@ registerClientTickPre(function()
     if rod == nil
     and tick > 70
     then
-      stateSwitch(states.idle)
-      gog.info("going idle cuz rod not out for 3.5s, while fishing")
       gnl.snowNotify("skyblock", "going idle")
+      gog.info("going idle cuz rod not out for 3.5s, while fishing")
+      stateSwitch(states.idle)
     end
 
     -- alert about direction
@@ -265,7 +265,7 @@ registerClientTickPre(function()
     and waitRotationAlert == 0
     then
       gog.critical("rotation alert")
-      gnl.snowNotifty("skyblock", "rotation alert")
+      gnl.snowNotify("skyblock", "rotation alert")
       waitRotationAlert = 40
     end
 
@@ -344,7 +344,7 @@ registerClientTickPre(function()
     -- equip weapon
     if curSlot and curSlot ~= SLOTS.ATK then
       player.input.setSelectedSlot(SLOTS.ATK)
-      gog.info("selected atk slot")
+      gog.debug("selected atk slot")
       wait = 2 -- delay after equipping weapon
       resetTick()
       return
@@ -539,7 +539,7 @@ registerMessageEvent(function(text, overlay, json)
   -- print("                  =======>>>>>> " .. text)
 
   if txt:find(player.getName(), 1, true) then
-    gnl.snowNotifty("skyblock", gut.remMcColors(text))
+    gnl.snowNotify("skyblock", gut.remMcColors(text))
   end
 
   if text == scs.carrot_king.str then
