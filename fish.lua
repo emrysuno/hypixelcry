@@ -173,7 +173,7 @@ registerClientTickPre(function()
   or location ~= "foraging_1"
   then
     tick = 0
-    stateSwitch(states.idle)
+    if state ~= states.idle then stateSwitch(states.idle) end
     return
   end
 
