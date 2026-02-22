@@ -116,6 +116,28 @@ end
 
 --------------------------------------------------------------------------------
 
+---@param ticks number
+---@return string
+function all.convertTicksToTimeFormat(ticks)
+
+  local totalSeconds = math.floor(ticks / 20)
+  local hours = math.floor(totalSeconds / 3600)
+  local minutes = math.floor((totalSeconds % 3600) / 60)
+  local seconds = totalSeconds % 60
+
+  -- formatting the string
+  if hours > 0 then
+    return string.format("%dh %dm %ds", hours, minutes, seconds)
+  elseif minutes > 0 then
+    return string.format("%dm %ds", minutes, seconds)
+  else
+    return string.format("%ds", seconds)
+  end
+
+end
+
+--------------------------------------------------------------------------------
+
 ---@param nums number
 ---@return number
 function all.roundUpToTwoDecimals(nums)
