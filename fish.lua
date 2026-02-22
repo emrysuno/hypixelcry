@@ -82,6 +82,7 @@ local states = {
 }
 local state = states.idle
 local tick = 0
+local time = 0
 local caughtFastest = 99
 local caughtSlowest = 0
 local caughtInSigma = 0
@@ -109,6 +110,16 @@ end
 
 local function tickProceed()
   tick = tick + 1
+end
+
+local function timeProceed()
+  if state == states.fishing
+  or state == states.catching
+  or state == states.recasting
+  or state == states.attacking
+  then
+    time = time + 1
+  end
 end
 
 local function waitRotationAlertProceed()
@@ -166,6 +177,7 @@ registerClientTickPre(function()
 
   -- consistent stuff
   tickProceed()
+  timeProceed()
   waitRotationAlertProceed()
   local rod = player.fishHook
   local pos = player.getPos()
@@ -494,11 +506,14 @@ register2DRenderer(function(context)
   local scsCaught = 0
   local content = {
 
-    { text = "state: " .. state },
-    { text = "tick: " .. tick },
-    { text = "wait: " .. wait },
+    { text = "time: " .. gut.convertTicksToTimeFormat(time) },
     { text = "rain: " .. gut.inf.rain },
-    { text = "caught: " .. caught },
+    {
+      text =
+        "caught: " ..
+        caught .. graySlash .. gut.clr.yellow ..
+        math.floor((caught / (time / 20)) * 3600)
+    },
     { text = "caught times: " ..
       gut.clr.green .. tostring(caughtFastest) ..
       graySlash ..
@@ -532,6 +547,9 @@ register2DRenderer(function(context)
 
   table.insert(content, { text = "" })
   table.insert(content, { text = "[debug]" })
+  table.insert(content, { text = "state: " .. state })
+  table.insert(content, { text = "tick: " .. tick })
+  table.insert(content, { text = "wait: " .. wait })
   table.insert(content, { text = "rotating: " .. tostring(rot.isRotating()) })
   table.insert(content, { text = "waitRotationAlert: " .. waitRotationAlert })
   table.insert(content, { text = "location: " .. location })
