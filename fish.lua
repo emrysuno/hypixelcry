@@ -189,6 +189,18 @@ registerClientTickPre(function()
     if tick < wait then return end
     resetWait()
 
+    -- carrot king pushing you prevention
+    local nearbyEntities = gut.getNearbyEntities(2, 2)
+    if nearbyEntities then
+      for _, mob in ipairs(nearbyEntities) do
+        if mob.type == "entity.minecraft.rabbit" then
+          gnl.snowNotify("skyblock", "carrot king")
+          stateSwitch(states.idle)
+          return
+        end
+      end
+    end
+
     -- position
     if pos.x == ew.fishing.pos.x
     and pos.y == ew.fishing.pos.y
@@ -275,7 +287,6 @@ registerClientTickPre(function()
     or pos.y ~= ew.fishing.pos.y
     or pos.z ~= ew.fishing.pos.z)
     then
-      -- if rabbit nearby then silent use atk then wait 5t
       stateSwitch(states.tpingToFishing)
       return
     end
