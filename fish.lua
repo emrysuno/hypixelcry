@@ -138,7 +138,9 @@ end
 local function stateSwitch(new_state)
   state = new_state
   tick = 0
-  if new_state == states.tpingToFishing then
+  if new_state == states.idle then
+    gnl.snowNotify("skyblock", "going idle")
+  elseif new_state == states.tpingToFishing then
     wait = math.random(5, 9)
   elseif new_state == states.fishing then
     wait = math.random(5, 8)
@@ -206,6 +208,7 @@ registerClientTickPre(function()
     if nearbyEntities then
       for _, mob in ipairs(nearbyEntities) do
         if mob.type == "entity.minecraft.rabbit" then
+          gog.critical("going idle, detected carrot king")
           gnl.snowNotify("skyblock", "carrot king")
           stateSwitch(states.idle)
           return
@@ -277,7 +280,6 @@ registerClientTickPre(function()
     if rod == nil
     and tick > 70
     then
-      gnl.snowNotify("skyblock", "going idle")
       gog.info("going idle cuz rod not out for 3.5s, while fishing")
       stateSwitch(states.idle)
     end
