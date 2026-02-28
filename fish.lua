@@ -14,30 +14,50 @@ local atkMethods = {
 }
 
 -- method to use for killing mobs, use the list above to choose one
-local atkMethod = atkMethods.none
+local atkMethod = atkMethods.oneshotEvery
 -- value for oneshotEvery atkMethod, oneshots every x amounts you catch something
-local oneshotEveryValue = 2
+local oneshotEveryValue = 8
+
+-- hunt mobs (define targets below)
+local hunt = true
+-- get the names from below's table named scs
+local huntTargets = {
+  "night_squid",
+  "squid",
+  "frog",
+  "bogged",
+  "ent",
+  "skeleton"
+}
+
+-- snap fishing angle
+local snapFish = true
+-- weather to snap to a angle to attack then snap back for fishing
+local snapAttack = true
+-- what angle to snap (use nil if you want either one to be the same)
+local snapAttackDirection = { yaw = 0, pitch = 0 }
 
 local SLOTS = {
-  ROD = 0,
+  ROD = 1,
   ATK = 3,
+  HUNTAXE = 5,
   EW = 6
 }
 
 local lookDirection = { yaw = -180, pitch = -0 }
-local alertWhenNotLookingAtDirection = true
+local alertWhenNotLookingAtDirection = false
 
 -- position yourself in a specific spot
 -- also the toggle for auto-buying rain
-local togglePositioning = true
+local togglePositioning = false
 
 -- recast if nothing caught in x ticks value
-local recastIfNothingCaughtInXTicks = 80
+local recastIfNothingCaughtInXTicks = 70
 
 -- tick ranges (random cooldown before doing stuff)
-local CATCH = {2, 4} -- for catching after detection
+local CATCH = {2, 3} -- for catching after detection
 local ATTACK = {1, 2} -- for attacking after catching
-local RECAST = {2, 5} -- for recasting after catching
+local RECAST = {2, 3} -- for recasting after catching
 
 rot.setRotationSpeed(20)
 
@@ -57,15 +77,28 @@ local ew = {
   }
 }
 local scs = {
+  double_hook = {
+    name = "double_hook",
+    str = "§eIt's a §aDouble Hook§e!",
+    catches = 0
+  },
   carrot_king = {
+    name = "carrot_king",
     str = "§aIs this even a fish? It's the Carrot King!",
     catches = 0
   },
+  agarimoo = {
+    name = "agarimoo",
+    str = "§aYour Chumcap Bucket trembles, it's an Agarimoo.",
+    catches = 0
+  },
   squid = {
+    name = "squid",
     str = "§aA Squid appeared.",
     catches = 0
   },
   night_squid = {
+    name = "night_squid",
     str = "§aPitch darkness reveals a Night Squid.",
     catches = 0
   }
@@ -79,10 +112,17 @@ local states = {
   recasting = "recasting",
   tpingToRain = "tpingToRain",
   buyingRain = "buyingRain",
+  hunting = "hunting"
 }
 local state = states.idle
+local lastState
 local tick = 0
 local time = 0
+-- local chatTime = -1
+-- local huntaxeAble = false
+local huntTarget = nil
+local huntTargetsHitList = {}
+local snapFishRotation = nil
 local caughtFastest = 99
 local caughtSlowest = 0
 local caughtInSigma = 0
@@ -91,8 +131,11 @@ local caughtLastUUID = nil
 local wait = 0
 local waitRotationAlert = 20
 local location = "idk"
+local nearbyEntities = nil
+local raycast = nil
+local isLookingAtHuntTarget = false
 gog.config.logTypes.info.enabled = true
-gog.config.logTypes.debug.enabled = false
+gog.config.logTypes.debug.enabled = true
 gog.config.logTypes.critical.enabled = true
 gui.config.gapInLinesFromTop = 1
 gut.tgl.rain = true
@@ -122,6 +165,11 @@ local function timeProceed()
   end
 end
 
+-- local function chatTimeProceed()
+--   if chatTime == -1 then return end
+--   chatTime = chatTime + 1
+-- end
+
 local function waitRotationAlertProceed()
   if waitRotationAlert == 0 then return end
   if waitRotationAlert < 0 then waitRotationAlert = 0 return end
@@ -134,8 +182,63 @@ end
 local function resetTick()
   tick = 0
 end
+-- local function resetChatTime()
+--   chatTime = -1
+-- end
+
+local function getHuntTarget()
+
+  -- early exit if no creatures nearby or nil
+  if not nearbyEntities
+  or #nearbyEntities == 0
+  then
+    huntTarget = nil
+    return
+  end
+
+  local detectedEntity = nil
+  for _, entity in ipairs(nearbyEntities) do
+    if not entity.name then goto bruh end
+    local name = string.lower(entity.name)
+
+    -- entity is to be hunted
+    if not gut.isTargetInTableOfStrings(name, huntTargets) then goto bruh end
+    -- entity is not blacklisted
+    if huntTargetsHitList[entity.uuid]
+    and huntTargetsHitList[entity.uuid] == 999 -- blacklist number
+    then goto bruh end
+
+    detectedEntity = entity
+    break
+
+    ::bruh::
+  end
+  if detectedEntity then huntTarget = detectedEntity return end
+  huntTarget = nil
+end
+
+local function getLookingAtHuntTarget()
+
+  -- early exits
+  if not raycast
+  or not huntTarget
+  then
+    isLookingAtHuntTarget = false
+    return
+  end
+
+  if raycast.type ~= "entity" then
+    isLookingAtHuntTarget = false
+    return
+  end
+  -- is looking at entity
+  if raycast.data.uuid == huntTarget.uuid then
+    isLookingAtHuntTarget = true
+  else isLookingAtHuntTarget = false end
+end
 
 local function stateSwitch(new_state)
+  lastState = state
   state = new_state
   tick = 0
   if new_state == states.idle then
@@ -151,9 +254,9 @@ local function stateSwitch(new_state)
   elseif new_state == states.recasting then
     wait = math.random(RECAST[1], RECAST[2])
   elseif new_state == states.tpingToRain then
-    wait = math.random(5, 9)
+    wait = math.random(3, 6)
   elseif new_state == states.buyingRain then
-    wait = math.random(5, 9)
+    wait = math.random(2, 4)
   end
 end
 
@@ -169,8 +272,13 @@ registerClientTickPre(function()
 
   -- early exits
   if (anyScreenOpened and title ~= "Vanessa")
-  or (curSlot ~= SLOTS.ROD and curSlot ~= SLOTS.ATK and curSlot ~= SLOTS.EW)
-  or location ~= "foraging_1"
+  or (
+    curSlot ~= SLOTS.ROD
+    and curSlot ~= SLOTS.ATK
+    and curSlot ~= SLOTS.EW
+    and curSlot ~= SLOTS.HUNTAXE
+  )
+  or (location ~= "foraging_1" and location ~= "foraging_2")
   then
     tick = 0
     if state ~= states.idle then stateSwitch(states.idle) end
@@ -180,7 +288,12 @@ registerClientTickPre(function()
   -- consistent stuff
   tickProceed()
   timeProceed()
+  -- chatTimeProceed()
   waitRotationAlertProceed()
+  getHuntTarget()
+  getLookingAtHuntTarget()
+  nearbyEntities = gut.getNearbyEntities(3, 3)
+  raycast = player.raycast(3)
   local rod = player.fishHook
   local pos = player.getPos()
   local curRot = player.getRotation()
@@ -195,7 +308,13 @@ registerClientTickPre(function()
     if tick < wait then return end
     resetWait()
     resetTick()
-    if rod ~= nil then stateSwitch(states.fishing) end
+    -- resetChatTime()
+
+    if rod == nil then return end
+    stateSwitch(states.fishing)
+
+    if not snapFish then return end
+    snapFishRotation = player.getRotation()
 
   -- tpingToFishing ------------------------------------------------------------
   elseif state == states.tpingToFishing then
@@ -204,12 +323,14 @@ registerClientTickPre(function()
     resetWait()
 
     -- carrot king pushing you prevention
-    local nearbyEntities = gut.getNearbyEntities(2, 2)
     if nearbyEntities then
       for _, mob in ipairs(nearbyEntities) do
         if mob.type == "entity.minecraft.rabbit" then
           gog.critical("going idle, detected carrot king")
           gnl.snowNotify("skyblock", "carrot king")
+          -- changing slot cuz if rod is out and king is present
+          -- notifications will be spammed
+          player.input.setSelectedSlot(8)
           stateSwitch(states.idle)
           return
         end
@@ -264,7 +385,7 @@ registerClientTickPre(function()
       return
     end
 
-    player.input.silentUse(SLOTS.EW)
+    player.input.rightClick()
     gog.debug("etherwarped to fishing pos")
     player.input.setPressedSneak(false)
     wait = 20
@@ -276,12 +397,12 @@ registerClientTickPre(function()
     if tick < wait then return end
     resetWait()
 
-    -- going idle cuz rod not out for 3.5s, while fishing
+    -- recasting cuz rod not out for 3.5s, while fishing
     if rod == nil
     and tick > 70
     then
-      gog.info("going idle cuz rod not out for 3.5s, while fishing")
-      stateSwitch(states.idle)
+      gog.info("recasting cuz rod not out for 3.5s, while fishing")
+      stateSwitch(states.recasting)
     end
 
     -- alert about direction
@@ -314,7 +435,7 @@ registerClientTickPre(function()
     -- recast if taking too long
     if tick > recastIfNothingCaughtInXTicks then
       gog.debug("recasting cuz nothing caught for a while")
-      player.input.silentUse(SLOTS.ROD)
+      player.input.rightClick()
       stateSwitch(states.recasting)
       return
     end
@@ -345,18 +466,24 @@ registerClientTickPre(function()
 
     if tick < wait then return end
     resetWait()
+
     caught = caught + 1
-    player.input.silentUse(SLOTS.ROD)
+    player.input.rightClick()
     gog.debug("caught")
+    -- chatTime = 0
 
     -- decide next state weather to atk or not
     local new_state = states.recasting
+
     if atkMethod == atkMethods.oneshot then
       new_state = states.attacking
+
     elseif atkMethod == atkMethods.oneshotEvery
     and caught % oneshotEveryValue == 0
-    then
-      new_state = states.attacking
+    then new_state = states.attacking
+
+    elseif hunt then
+      new_state = states.hunting
     end
     stateSwitch(new_state)
 
@@ -376,9 +503,66 @@ registerClientTickPre(function()
     end
 
     -- attack
-    player.input.silentUse(SLOTS.ATK)
+    player.input.rightClick()
     gog.debug("attacked")
     stateSwitch(states.recasting)
+
+  -- hunting -------------------------------------------------------------------
+
+  elseif state == states.hunting then
+
+    if tick < wait then return end
+    resetWait()
+
+    -- early exit
+    if not huntTarget then
+      stateSwitch(states.recasting)
+      -- resetChatTime()
+      return
+    end
+
+    -- make an entry in the set
+    if not huntTargetsHitList[huntTarget.uuid] then
+      huntTargetsHitList[huntTarget.uuid] = 0
+    -- proceed only if target hit less than 2 times
+    elseif huntTargetsHitList[huntTarget.uuid] > 1 then
+      stateSwitch(states.recasting)
+      return
+    end
+
+    -- equip axe, only if stateLast was catching
+    if curSlot
+    and curSlot ~= SLOTS.HUNTAXE
+    and lastState == states.catching
+    then
+      lastState = states.hunting -- ensure it only equips once
+      player.input.setSelectedSlot(SLOTS.HUNTAXE)
+      gog.debug("selected huntaxe slot")
+      wait = 2 -- delay after equipping huntaxe
+      resetTick()
+      return
+    end
+
+    -- look at target
+    if not isLookingAtHuntTarget then
+      local c = huntTarget.box.getCenter()
+      rot.rotateToCoordinates(c.x, c.y, c.z)
+
+      -- exit and blacklist cuz it took too long
+      if tick > 60 then
+        huntTargetsHitList[huntTarget.uuid] = 999
+        stateSwitch(states.recasting)
+      end
+      return
+    end
+
+    -- TODO: remove times-hit and just hit till the mob is gone or off-reach
+    -- thats also removes the need for loch check btw
+    player.input.leftClick()
+    huntTargetsHitList[huntTarget.uuid] = huntTargetsHitList[huntTarget.uuid] + 1
+    gog.debug("hunt target hit, uuid: " .. tostring(huntTarget.uuid))
+    wait = math.random(10, 11)
+    resetTick()
 
   -- recasting -----------------------------------------------------------------
   elseif state == states.recasting then
@@ -386,8 +570,16 @@ registerClientTickPre(function()
     if tick < wait then return end
     resetWait()
 
-    -- re-equip rod
-    if curSlot and curSlot ~= SLOTS.ROD then
+    -- re-equip rod, only if stateLast was attacking
+    if curSlot
+    and curSlot ~= SLOTS.ROD
+    and (
+      lastState == states.attacking
+      or lastState == states.tpingToFishing
+      or lastState == states.hunting
+    )
+    then
+      lastState = states.recasting -- ensure only equips once
       player.input.setSelectedSlot(SLOTS.ROD)
       gog.debug("selected rod slot")
       wait = 2 -- delay after equipping rod
@@ -395,7 +587,19 @@ registerClientTickPre(function()
       return
     end
 
-    player.input.silentUse(SLOTS.ROD)
+    -- snapFish
+    if snapFish
+    and snapFishRotation
+    and (
+      snapFishRotation.yaw ~= curRot.yaw
+      or snapFishRotation.pitch ~= curRot.pitch
+    )
+    then
+      rot.rotateToYawPitch(snapFishRotation.yaw, snapFishRotation.pitch)
+      return
+    end
+
+    player.input.rightClick()
     gog.debug("recasted")
     stateSwitch(states.fishing)
 
@@ -444,7 +648,7 @@ registerClientTickPre(function()
       return
     end
 
-    player.input.silentUse(SLOTS.EW)
+    player.input.rightClick()
     gog.debug("etherwarped to rain pos")
     player.input.setPressedSneak(false)
     wait = 20
@@ -536,7 +740,9 @@ register2DRenderer(function(context)
           tostring(gut.roundUpToTwoDecimals((data.catches / caught) * 100))
       }
     )
+    if key == "double_hook" then goto alright end
     scsCaught = scsCaught + data.catches
+    ::alright::
   end
   local uselessCatches = caught - scsCaught
   table.insert(content, {
@@ -555,6 +761,24 @@ register2DRenderer(function(context)
   table.insert(content, { text = "rotating: " .. tostring(rot.isRotating()) })
   table.insert(content, { text = "waitRotationAlert: " .. waitRotationAlert })
   table.insert(content, { text = "location: " .. location })
+  -- table.insert(content, { text = "chatTime: " .. chatTime })
+  -- table.insert(content, { text = "huntaxeAble: " .. tostring(huntaxeAble) })
+  table.insert(content, { text = "nearbyEntities: " .. (nearbyEntities and #nearbyEntities or "idk") })
+  -- table.insert(content, { text = "spanFishRot: " .. (snapFishRotation and gut.tableToString(snapFishRotation) or "idk") })
+  -- table.insert(content, { text = "huntTargetsHitList: " .. (huntTargetsHitList and gut.tableToString(huntTargetsHitList) or "idk") })
+  table.insert(content, { text = "huntTarget: " ..
+    (huntTarget and tostring(huntTarget.display_name) or "nil")
+    -- (huntTarget and tostring(huntTarget.health) or "hp") .. " " ..
+    -- (huntTarget and tostring(huntTarget.max_health) or "mhp") .. " " ..
+    -- (huntTarget and tostring(huntTarget.type) or "type")
+  })
+  table.insert(content, { text = "isLookingAtHuntTarget: " .. tostring(isLookingAtHuntTarget) })
+  table.insert(content, { text = "raycast: " .. (
+    raycast
+    and raycast.type == "entity"
+    and tostring(raycast.data.display_name)
+    or "nil"
+  )})
 
   gui.content = content
 
@@ -567,23 +791,40 @@ registerMessageEvent(function(text, overlay, json)
   if not text then return end
 
   local txt = string.lower(text)
-  -- print("                  =======>>>>>> " .. text)
+  -- if string.find(txt, "double") then
+  --   print(">>>>>> " .. text)
+  -- end
 
   if txt:find(player.getName(), 1, true) then
     gnl.snowNotify("skyblock", gut.remMcColors(text))
   end
 
-  if text == scs.carrot_king.str then
-    scs.carrot_king.catches = scs.carrot_king.catches + 1
+  -- this is for hunting with chat messages isntead of detecting nearby mobs
+  -- aka huntaxeCreature
+  -- for _, creature in pairs(scs) do
+  --   if string.find(text, creature.str) then
+  --     creature.catches = creature.catches + 1
+  --     gog.debug("chat msg in " .. tostring(chatTime))
+  --     if huntaxe and huntaxeThese[creature.name] then
+  --       huntaxeAble = true
+  --     end
+  --     break
+  --   end
+  -- end
 
-  elseif text == scs.squid.str then
-    scs.squid.catches = scs.squid.catches + 1
+end)
 
-  elseif text == scs.night_squid.str then
-    scs.night_squid.catches = scs.night_squid.catches + 1
+registerWorldRenderer(function (context)
 
-  end
+  if not huntTarget then return end
 
+  local line = {
+    box = huntTarget.box,
+    red = 255, green = 0, blue = 0, alpha = 255,
+    line_width = 2
+  }
+  -- context.renderLineFromCursor(line)
+  context.renderOutline(line)
 
 end)
 
