@@ -219,12 +219,27 @@ function all.getNearbyEntities(hRange, vRange, excludeEntities)
           uuid = entity.uuid,
           hDist = math.floor(horizontalDist * 10) / 10, -- rounded to 1 decimal
           vDist = math.floor(verticalDist * 10) / 10,
-          pos = {x = ex, y = ey, z = ez}
+          pos = {x = ex, y = ey, z = ez},
+          box = entity.box or nil
         })
       end
     end
   end
   return mobList
+end
+
+--------------------------------------------------------------------------------
+
+---@param target string
+---@param table table
+---@return boolean
+function all.isTargetInTableOfStrings(target, table)
+  for _, str in ipairs(table) do
+    if string.find(target, str, 1, true) then
+      return true
+    end
+  end
+  return false
 end
 
 --------------------------------------------------------------------------------
