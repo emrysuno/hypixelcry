@@ -1,7 +1,7 @@
 local gui = require("goonUi.lua")
 local gog = require("goonLog.lua")
 local gut = require("goonUtils.lua")
-local rot = require("rotations_v2.lua")
+local rot = require("rotations_v3.lua")
 local gnl = require("notificationsLinux.lua")
 
 -- config ----------------------------------------------------------------------
@@ -16,7 +16,7 @@ local atkMethods = {
 -- method to use for killing mobs, use the list above to choose one
 local atkMethod = atkMethods.oneshotEvery
 -- value for oneshotEvery atkMethod, oneshots every x amounts you catch something
-local oneshotEveryValue = 8
+local oneshotEveryValue = 4
 
 -- hunt mobs (define targets below)
 local hunt = true
@@ -25,7 +25,7 @@ local huntTargets = {
   "night_squid",
   "squid",
   "frog",
-  "bogged",
+  -- "bogged",
   "ent",
   "skeleton"
 }
@@ -58,8 +58,10 @@ local recastIfNothingCaughtInXTicks = 70
 local CATCH = {2, 3} -- for catching after detection
 local ATTACK = {1, 2} -- for attacking after catching
 local RECAST = {2, 3} -- for recasting after catching
+local HIT_HUNT_CREATURE_TIMES = 3 -- times to hit a create for hunting
 
-rot.setRotationSpeed(20)
+rot.setRotationSpeed(28)
+rot.setModifier(10)
 
 gnl.defaultUrgency = "critical"
 gnl.defaultTimeout = 0
@@ -160,6 +162,7 @@ local function timeProceed()
   or state == states.catching
   or state == states.recasting
   or state == states.attacking
+  or state == states.hunting
   then
     time = time + 1
   end
@@ -202,10 +205,17 @@ local function getHuntTarget()
     local name = string.lower(entity.name)
 
     -- entity is to be hunted
-    if not gut.isTargetInTableOfStrings(name, huntTargets) then goto bruh end
-    -- entity is not blacklisted
+    if not gut.isTargetInTableOfStrings(name, huntTargets)
+    then goto bruh end
+    -- entity is not an armor stand
+    if entity.type == "entity.minecraft.armor_stand"
+    then goto bruh end
+    -- entity is not blacklisted or not hit for required amount
     if huntTargetsHitList[entity.uuid]
-    and huntTargetsHitList[entity.uuid] == 999 -- blacklist number
+    and (
+      huntTargetsHitList[entity.uuid] == 999 -- blacklist number
+      or huntTargetsHitList[entity.uuid] > (HIT_HUNT_CREATURE_TIMES -1)
+    )
     then goto bruh end
 
     detectedEntity = entity
@@ -402,6 +412,7 @@ registerClientTickPre(function()
     and tick > 70
     then
       gog.info("recasting cuz rod not out for 3.5s, while fishing")
+      if hunt and huntTarget then stateSwitch(states.hunting) return end
       stateSwitch(states.recasting)
     end
 
@@ -435,6 +446,7 @@ registerClientTickPre(function()
     -- recast if taking too long
     if tick > recastIfNothingCaughtInXTicks then
       gog.debug("recasting cuz nothing caught for a while")
+      if hunt and huntTarget then stateSwitch(states.hunting) return end
       player.input.rightClick()
       stateSwitch(states.recasting)
       return
@@ -478,12 +490,13 @@ registerClientTickPre(function()
     if atkMethod == atkMethods.oneshot then
       new_state = states.attacking
 
+    elseif hunt and huntTarget then
+      new_state = states.hunting
+
     elseif atkMethod == atkMethods.oneshotEvery
     and caught % oneshotEveryValue == 0
     then new_state = states.attacking
 
-    elseif hunt then
-      new_state = states.hunting
     end
     stateSwitch(new_state)
 
@@ -505,6 +518,12 @@ registerClientTickPre(function()
     -- attack
     player.input.rightClick()
     gog.debug("attacked")
+    if hunt and huntTarget
+    then
+      stateSwitch(states.hunting)
+      wait = 10
+      return
+    end
     stateSwitch(states.recasting)
 
   -- hunting -------------------------------------------------------------------
@@ -517,7 +536,6 @@ registerClientTickPre(function()
     -- early exit
     if not huntTarget then
       stateSwitch(states.recasting)
-      -- resetChatTime()
       return
     end
 
@@ -525,7 +543,7 @@ registerClientTickPre(function()
     if not huntTargetsHitList[huntTarget.uuid] then
       huntTargetsHitList[huntTarget.uuid] = 0
     -- proceed only if target hit less than 2 times
-    elseif huntTargetsHitList[huntTarget.uuid] > 1 then
+    elseif huntTargetsHitList[huntTarget.uuid] > (HIT_HUNT_CREATURE_TIMES - 1) then
       stateSwitch(states.recasting)
       return
     end
@@ -533,7 +551,10 @@ registerClientTickPre(function()
     -- equip axe, only if stateLast was catching
     if curSlot
     and curSlot ~= SLOTS.HUNTAXE
-    and lastState == states.catching
+    and (
+      lastState == states.catching
+      or lastState == states.fishing
+    )
     then
       lastState = states.hunting -- ensure it only equips once
       player.input.setSelectedSlot(SLOTS.HUNTAXE)
@@ -544,14 +565,15 @@ registerClientTickPre(function()
     end
 
     -- look at target
+    -- NOTE: change isLookingAtHuntTarget to just its staring at it
     if not isLookingAtHuntTarget then
       local c = huntTarget.box.getCenter()
       rot.rotateToCoordinates(c.x, c.y, c.z)
 
       -- exit and blacklist cuz it took too long
       if tick > 60 then
-        huntTargetsHitList[huntTarget.uuid] = 999
-        stateSwitch(states.recasting)
+        -- huntTargetsHitList[huntTarget.uuid] = 999
+        stateSwitch(states.attacking)
       end
       return
     end
@@ -559,7 +581,9 @@ registerClientTickPre(function()
     -- TODO: remove times-hit and just hit till the mob is gone or off-reach
     -- thats also removes the need for loch check btw
     player.input.leftClick()
-    huntTargetsHitList[huntTarget.uuid] = huntTargetsHitList[huntTarget.uuid] + 1
+    if string.lower(huntTarget.name) ~= "skeleton" then
+      huntTargetsHitList[huntTarget.uuid] = huntTargetsHitList[huntTarget.uuid] + 1
+    end
     gog.debug("hunt target hit, uuid: " .. tostring(huntTarget.uuid))
     wait = math.random(10, 11)
     resetTick()
@@ -593,6 +617,10 @@ registerClientTickPre(function()
     and (
       snapFishRotation.yaw ~= curRot.yaw
       or snapFishRotation.pitch ~= curRot.pitch
+    )
+    and (
+      lastState == states.recasting
+      or lastState == states.hunting
     )
     then
       rot.rotateToYawPitch(snapFishRotation.yaw, snapFishRotation.pitch)
@@ -767,10 +795,10 @@ register2DRenderer(function(context)
   -- table.insert(content, { text = "spanFishRot: " .. (snapFishRotation and gut.tableToString(snapFishRotation) or "idk") })
   -- table.insert(content, { text = "huntTargetsHitList: " .. (huntTargetsHitList and gut.tableToString(huntTargetsHitList) or "idk") })
   table.insert(content, { text = "huntTarget: " ..
-    (huntTarget and tostring(huntTarget.display_name) or "nil")
+    (huntTarget and tostring(huntTarget.display_name) or "nil") .. " " ..
     -- (huntTarget and tostring(huntTarget.health) or "hp") .. " " ..
     -- (huntTarget and tostring(huntTarget.max_health) or "mhp") .. " " ..
-    -- (huntTarget and tostring(huntTarget.type) or "type")
+    (huntTarget and tostring(huntTarget.type) or "type")
   })
   table.insert(content, { text = "isLookingAtHuntTarget: " .. tostring(isLookingAtHuntTarget) })
   table.insert(content, { text = "raycast: " .. (
