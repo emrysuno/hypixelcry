@@ -35,7 +35,7 @@ function scripts.getPestPlots()
   local tabBody = (player.getTab()).body
   if not tabBody then return end
   local alive = 0
-  for index, line in ipairs(tabBody) do
+  for _, line in ipairs(tabBody) do
     line = line:gsub("§4", "")
     line = line:gsub("§b", "")
     line = line:gsub("§f", "")
@@ -90,7 +90,6 @@ local pestsKilled = 0
 local previousPests = {}
 
 local previousAliveCount = 0
-local pestsKilled = 0
 
 local world_getEntitiesInBox = world.getEntitiesInBox
 local BOX_EXPAND_Y = 2
@@ -101,6 +100,7 @@ end
 
 function scripts.getAlivePests()
   local alive = scripts.getPestPlots() -- получить текущее число живых Pests
+  if not alive or not previousAliveCount then return nil end
   if alive < previousAliveCount then
     pestsKilled = pestsKilled + (previousAliveCount - alive)
   end
