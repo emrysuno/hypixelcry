@@ -4,11 +4,9 @@ local pest_fly = require("pest_fly.lua")
 local gui = require("goonUi.lua")
 local gut = require("goonUtils.lua")
 local gog = require("goonLog.lua")
+local cv = require("CryVigilance/index")
 
 -- config ----------------------------------------------------------------------
-
--- keep this diabled else crash
-local tglGui = false
 
 -- key to toggle the script (doesn't stop when its killing pests)
 -- find them in this channel https://discord.com/channels/1418100297615802439/1440138302777987133
@@ -19,43 +17,43 @@ local gdirections = {
   "right & back",
   "left & right"
 }
-local gdirection = gdirections[2]
+local gdirection = gdirections[1]
 
 -- whether to use a key to move to the next farming line
-local tglChangingDirection = false
+local tglChangingDirection = true
 -- which direction to move
 local changingDirections = {
   "W", "A", "S", "D"
 }
-local changingDirection = 0
+local changingDirection = changingDirections[1]
 
 -- options for return direction: "W" or "A" or "S" or "D"
 -- this just means which direction u wanna move in when u are returning hence restarting the farm
 -- this is triggered when u are standing over the
 -- "returnBlockBelowFeet" block (look at the bottom of config)
-local returnDirection = "W"
+local returnDirection = "S"
 
 -- toggle stuff to do
-local tglSpray = false -- use spray on plots automatically or not
-local tglRodSwap = false -- swap pets for spawning pests when pest cooldown is almost ready or not
+local tglSpray = true -- use spray on plots automatically or not
+local tglRodSwap = true -- swap pets for spawning pests when pest cooldown is almost ready or not
 
 -- slot numbers should be 1 less than what u think they are
 -- like the sb menu is in slot 9 but here we'd put it "8"
-local toolSlot = 1
+local toolSlot = 0
 local rodSwapSlot = 2
-local spraySlot = 3
+local spraySlot = 4
 
 -- NOTEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
 -- non case sensitive (capitalization doesn't matter)
 -- you need 2 auto pet rules whenever u cast rod for these 2 pets
 -- what pet to switch to when pest cooldown is close to ready
-local pestSpawnPet = "Blaze"
+local pestSpawnPet = "blaze"
 -- what pet to switch to when farming (pest cooldown is above 5 seconds)
-local farmPet = "Ghoul"
+local farmPet = "lion"
 
 -- yaw and pitch u want to farm at
-local gyaw = 135
-local gpitch = 16.5
+local gyaw = -90
+local gpitch = 0
 
 -- the player Y level when u are standing in the bottom most location in the farm
 local groundHeightMin = 67
@@ -63,7 +61,7 @@ local groundHeightMin = 67
 local groundHeightMax = 69
 
 -- the amount of pests when you want to start killing them
-local pestsToStartKill = 9
+local pestsToStartKill = 1
 
 local returnBlockBelowFeet = "redstone_block"
 
@@ -83,6 +81,7 @@ gut.tgl.visitors = true
 gut.tgl.velocity = true
 gut.tgl.blockBelowFeet = true
 gut.tgl.pet = true
+gui.config.gapInLinesFromTop = 2
 
 pest_fly.setState("Stop")
 rotations.setRotationSpeed(5)
@@ -98,6 +97,7 @@ local wasKillingState = "left"
 
 local function toggleSys()
   mainToggle = not mainToggle
+  gog.info("toggled " .. (mainToggle and "on" or "off"))
 end
 
 function readAll(file)
@@ -159,48 +159,10 @@ registerServerSideTeleportEvent(function(x, y, z)
   end
 end)
 
--- registerWorldRenderer(function(context)
---   local position = player.getLocation()
---   if position ~= "GARDEN" then return end
---
---   local end_filled = {
---     x = config.warp.x, y = config.warp.y + 1, z = config.warp.z,
---     red = 255, green = 85, blue = 85, alpha = 140,
---     through_walls = true
---   }
---   context.renderFilled(end_filled)
---
---   local end_text = {
---     x = config.warp.x + 0.5, y = config.warp.y + 2.5, z = config.warp.z + 0.5,
---     red = 255, green = 0, blue = 0,
---     scale = 1,
---     text = "End", through_walls = true
---   }
---   context.renderText(end_text)
---
---   local start_filled = {
---     x = config.start.x, y = config.start.y + 1, z = config.start.z,
---     red = 85, green = 255, blue = 85, alpha = 140,
---     through_walls = true
---   }
---   context.renderFilled(start_filled)
---
---   local start_text = {
---     x = config.start.x + 0.5, y = config.start.y + 2.5, z = config.start.z + 0.5,
---     red = 85, green = 255, blue = 85,
---     scale = 1,
---     text = "Start", through_walls = true
---   }
---   context.renderText(start_text)
--- end)
-
--- local visitors = 0
 local state2 = "Farming"
 
-register2DRenderer(function(context)
+register2DRenderer(function()
 
-  local farming_tool = player.inventory.getStack(0)
-  local vacuum_tool = player.inventory.getStack(1)
   local status = "§a✔"
 
   if pest_fly.getState() ~= "Stop" then status = "§c🗡" end
@@ -222,7 +184,7 @@ register2DRenderer(function(context)
     -- { text = "pestCdRaw: " .. (gut.dump.pestCdRaw or "idk") .. " | " .. type(gut.inf.pestCdRaw) },
     -- { text = "pestCd: " .. (gut.inf.pestCd or "idk") },
     -- { text = "pos: " .. (gut.inf.pos.x or "idk") .. ", " .. (gut.inf.pos.y or "idk") .. ", " .. (gut.inf.pos.z or "idk") },
-    -- { text = "block: " .. (gut.inf.blockBelowFeet or "idk") },
+    { text = "block: " .. (gut.inf.blockBelowFeet or "idk") },
     { text = "state: " .. (state or "idk") },
     { text = "state2: " .. (state2 or "idk") }
   }
@@ -244,34 +206,11 @@ registerLocationChangeEvent(function(location)
   end
 end)
 
-function removeMinecraftColors(str)
-  return string.gsub(str or "", "§[0-9a-fk-or]", "")
-end
-
-function isFirstSlotSelected()
-  selectedSlot = player.input.getSelectedSlot()
-  if selectedSlot == toolSlot then return true or false end
-end
-
 registerClientTickPost(function()
 
-  local tabBody = (player.getTab()).body
+  local tabBody = player.getTab()
+  if tabBody then tabBody = tabBody.body end
   if not tabBody then return end
-
-  -- for _, line in ipairs(tabBody) do
-  --   local remLine = removeMinecraftColors(line)
-  --
-  --   local vis = string.match(remLine, "Visitors: %((%d+)%)")
-  --   if vis then visitors = tonumber(vis) or -1 end
-  --
-  --   local spra = string.match(remLine, "Spray: (.+)")
-  --   if spra then spray = tostring(spra) or "undefined" end
-  --   local pestCd = string.match(remLine, "Cooldown: (.+)")
-  --   if pestCd then pestCooldown = tostring(pestCd) or -1 end
-  --   -- local pe = string.match(remLine, "%[Lvl %d+%] (.+)")
-  --   -- if pe then pet = tostring(pe) or "undefined" end
-  --
-  -- end
 
   if mainToggle ~= true then return end
 
@@ -289,17 +228,21 @@ registerClientTickPost(function()
         if farmingDelayer < 18 then return end
         wasKilling = false
         state = wasKillingState
+        gog.debug("wasKilling idk")
+        player.input.setSelectedSlot(toolSlot)
       end
 
-      if tglSpray and spray == "None" then
+      if tglSpray and gut.inf.spray == "None" then
         sprayTime = sprayTime + 1
-        if sprayTime < 29 then return end
-        if spray ~= "None" then sprayTime = 0 return end
+        if sprayTime < 29 then goto sprayIDK end
+        if gut.inf.spray ~= "None" then sprayTime = 0 goto sprayIDK end
         player.input.setPressedAttack(false)
-        if sprayTime < 35 then return end
+        if sprayTime < 35 then goto sprayIDK end
+        gog.debug("sprayed")
         player.input.silentUse(spraySlot)
         sprayTime = 0
       end
+      ::sprayIDK::
 
       if pest_fly.getPestPlots() >= pestsToStartKill then
         delayer = delayer + 1
@@ -406,10 +349,11 @@ registerClientTickPost(function()
         end
         ::alright::
 
-        player.input.setSelectedSlot(0)
+        -- player.input.setSelectedSlot(0)
         player.input.setPressedSprinting(true)
         -- player.input.setPressedForward(true)
         player.input.setPressedAttack(true)
+        -- gog.debug("setPressedAttack")
         if state == "left" then
 
           if gdirection == "right & back" then
@@ -571,102 +515,239 @@ end)
 registerKeyEvent(function(key, action)
   if key == masterKeyToggle and action == "Release" then
     toggleSys()
-    gog.info("toggled " .. (mainToggle and "on" or "off"))
   end
 end)
 
-registerImGuiRenderEvent(function()
+-- cryvigilance cvp ------------------------------------------------------------
 
-  if not tglGui then return end
+-- cv opts
+local cvo = {
+  cat = "goonFarming",
+  subc = {
+    main = "main",
+    directions = "directions",
+    greturn = "return",
+    pet = "pet",
+    camera = "camera",
+    spray = "spray",
+    misc = "misc"
+  }
+}
 
-  if imgui.begin("goon farming 2") then
+local cfg = cv.new(
+    "goon",
+    "goon",
+    nil,
+    345
+)
 
-    -- checkbox, master toggle
-    local mainToggleChanged, mainToggleNew = imgui.checkbox("master toggle", mainToggle)
-    if mainToggleChanged then mainToggle = mainToggleNew end
-
-    -- listbox, movement direction
-    gdirection = imgui.listBox("ListBox", gdirection, gdirections)
-
-    -- checkbox + listbox, changing direction + toggle
-    local tglChangingDirectionChanged, tglChangingDirectionNew = imgui.checkbox("change lane", tglChangingDirection)
-    if tglChangingDirectionChanged then tglChangingDirection = tglChangingDirectionNew end
-    changingDirection = imgui.listBox("change lane direction", changingDirection, changingDirections)
-
-    returnDirection = imgui.listBox("restart direction", returnDirection, changingDirections)
-
-    local tglRodSwapChanged, tglRodSwapNew = imgui.checkbox("pet swap", tglRodSwap)
-    if tglRodSwapChanged then tglRodSwap = tglRodSwapNew end
-
-    local tglSprayChanged, tglSprayNew = imgui.checkbox("spray plot", tglSpray)
-    if tglSprayChanged then tglSpray = tglSprayNew end
-
-    local hoe, hoeNew = imgui.inputInt("hoe slot", toolSlot, 1, 1)
-    if hoe then
-      if hoeNew > 0 and hoeNew < 10 then
-        toolSlot = hoeNew
-      end
-    end
-
-    local rod, rodNew = imgui.inputInt("rod slot", rodSwapSlot, 1, 1)
-    if rod then
-      if rodNew > 0 and rodNew < 10 then
-        rodSwapSlot = rodNew
-      end
-    end
-
-    local sprayy, spraynew = imgui.inputInt("spray slot", spraySlot, 1, 1)
-    if sprayy then
-      if spraynew > 0 and spraynew < 10 then
-        spraySlot = spraynew
-      end
-    end
-
-    local pestSpawnPetChanged, pestSpawnPetNew = imgui.inputText("pest spawn pet", pestSpawnPet)
-    if pestSpawnPetChanged then pestSpawnPet = pestSpawnPetNew end
-
-    local farmPetChanged, farmPetNew = imgui.inputText("farm pet", farmPet)
-    if farmPetChanged then farmPet = farmPetNew end
-
-    local yaww, yawwNew = imgui.inputInt("yaw", gyaw, 15, 45)
-    if yaww then
-      if yawwNew >= -180.0 and yawwNew <= 179.9 then
-        gyaw = yawwNew
-      end
-    end
-
-    local pitchh, pitchhNew = imgui.inputFloat("pitch", gpitch, 15, 45, "%.3f")
-    if pitchh then
-      if pitchhNew >= -90 and pitchhNew <= 90 then
-        gpitch = pitchhNew
-      end
-    end
-
-    local ghmc, ghmcn = imgui.inputInt("lowest farm Y", groundHeightMin, 1, 8)
-    if ghmc then
-      if ghmcn >= -180 and ghmcn <= 180 then
-        groundHeightMin = ghmcn
-      end
-    end
-    local ghMc, ghMcn = imgui.inputInt("highest farm Y", groundHeightMax, 1, 8)
-    if ghMc then
-      if ghMcn >= -180 and ghMcn <= 180 then
-        groundHeightMax = ghMcn
-      end
-    end
-
-    local ptsk, ptskn = imgui.inputInt("pests to start killing", pestsToStartKill, 1, 1)
-    if ptsk then
-      if ptskn >= 1 and ptskn <= 8 then
-        pestsToStartKill = ptskn
-      end
-    end
-
-    local rtbf, rtbfn = imgui.inputText("block to detect below feet for restart", returnBlockBelowFeet)
-    if rtbf then returnBlockBelowFeet = rtbfn end
-
-  end
-
-  imgui.endBegin()
-
+cfg:addProperty({
+  type        = cv.TYPES.SWITCH,
+  key         = "mainToggle",
+  name        = "toggle",
+  description = "turns on/off (keybind: windows-key)",
+  category    = cvo.cat,
+  subcategory = cvo.subc.main,
+  default     = false,
+})
+cfg:onChanged("mainToggle", function(newValue)
+  mainToggle = newValue
 end)
+cfg:addProperty({
+    type        = cv.TYPES.SLIDER,
+    key         = "pestsToStartKill",
+    name        = "pests to start killing",
+    description = "amount of pests that should be alive before starting to kill them",
+    category    = cvo.cat,
+    subcategory = cvo.subc.main,
+    default     = 2,
+    min         = 1,
+    max         = 8,
+})
+cfg:onChanged("pestsToStartKill", function(newValue)
+  pestsToStartKill = newValue
+end)
+
+cfg:addProperty({
+  type        = cv.TYPES.SWITCH,
+  key         = "tglSpray",
+  name        = "auto-spray",
+  description = "turns on/off auto-spray plot",
+  category    = cvo.cat,
+  subcategory = cvo.subc.spray,
+  default     = false,
+})
+cfg:onChanged("tglSpray", function(newValue)
+  tglSpray = newValue
+end)
+
+cfg:addProperty({
+    type          = cv.TYPES.DECIMAL_SLIDER,
+    key           = "gyaw",
+    name          = "yaw",
+    description   = "yaw to look at when farming (ctrl-click to enter manually)",
+    category      = cvo.cat,
+    subcategory   = cvo.subc.camera,
+    default       = 0.0,
+    minF          = -179.9,
+    maxF          = 180.0,
+    decimalPlaces = 1,
+})
+cfg:onChanged("gyaw", function(newValue)
+  gyaw = newValue
+end)
+cfg:addProperty({
+    type          = cv.TYPES.DECIMAL_SLIDER,
+    key           = "gpitch",
+    name          = "pitch",
+    description   = "pitch to look at when farming (ctrl-click to enter manually)",
+    category      = cvo.cat,
+    subcategory   = cvo.subc.camera,
+    default       = 0.0,
+    minF          = -90.0,
+    maxF          = 90.0,
+    decimalPlaces = 1,
+})
+cfg:onChanged("gpitch", function(newValue)
+  gpitch = newValue
+end)
+
+cfg:addProperty({
+  type        = cv.TYPES.SLIDER,
+  key         = "groundHeightMin",
+  name        = "lowest farming Y level",
+  description = "the lowest Y level of the farm",
+  category    = cvo.cat,
+  subcategory = cvo.subc.misc,
+  default     = 67,
+  min         = 67,
+  max         = 77,
+})
+cfg:onChanged("groundHeightMin", function(newValue)
+  groundHeightMin = newValue
+end)
+cfg:addProperty({
+  type        = cv.TYPES.SLIDER,
+  key         = "groundHeightMax",
+  name        = "highest farming Y level",
+  description = "the highest Y level of the farm (lowest + 1 if your farm is flat)",
+  category    = cvo.cat,
+  subcategory = cvo.subc.misc,
+  default     = 69,
+  min         = 67,
+  max         = 77,
+})
+cfg:onChanged("groundHeightMax", function(newValue)
+  groundHeightMax = newValue
+end)
+
+cfg:addProperty({
+  type        = cv.TYPES.SWITCH,
+  key         = "tglRodSwap",
+  name        = "rod swap pet",
+  description = "turns on/off auto-swap pet for pest spawning and back to cow when farming",
+  category    = cvo.cat,
+  subcategory = cvo.subc.pet,
+  default     = false,
+})
+cfg:onChanged("tglRodSwap", function(newValue)
+  tglRodSwap = newValue
+end)
+cfg:addProperty({
+    type        = cv.TYPES.TEXT,
+    key         = "pestSpawnPet",
+    name        = "petname",
+    description = "petname for spawning pests (slug/mosquito)",
+    category    = cvo.cat,
+    subcategory = cvo.subc.pet,
+    default     = "slug",
+    placeholder = "slug / mosquito",
+})
+cfg:onChanged("pestSpawnPet", function(newValue)
+  pestSpawnPet = newValue
+end)
+cfg:addProperty({
+    type        = cv.TYPES.TEXT,
+    key         = "farmPet",
+    name        = "petname",
+    description = "petname for farming",
+    category    = cvo.cat,
+    subcategory = cvo.subc.pet,
+    default     = "mooshroom cow",
+    placeholder = "cow / elephant / rabbit",
+})
+cfg:onChanged("farmPet", function(newValue)
+  farmPet = newValue
+end)
+
+cfg:addProperty({
+  type        = cv.TYPES.SELECTOR,
+  key         = "gdirection",
+  name        = "moving direction",
+  description = "direction to move in while farming",
+  category    = cvo.cat,
+  subcategory = cvo.subc.directions,
+  default     = 1,
+  options     = gdirections
+})
+cfg:onChanged("gdirection", function(newIdx)
+  gdirection = gdirections[newIdx]
+end)
+
+cfg:addProperty({
+  type        = cv.TYPES.SWITCH,
+  key         = "tglChangingDirection",
+  name        = "change lanes ?",
+  description = "turns on/off changing lane movement",
+  category    = cvo.cat,
+  subcategory = cvo.subc.directions,
+  default     = false,
+})
+cfg:onChanged("tglChangingDirection", function(newValue)
+  tglChangingDirection = newValue
+end)
+cfg:addProperty({
+  type        = cv.TYPES.SELECTOR,
+  key         = "changingDirection",
+  name        = "lane changing direction",
+  description = "direction to move in to move to next lane",
+  category    = cvo.cat,
+  subcategory = cvo.subc.directions,
+  default     = 1,
+  options     = changingDirections
+})
+cfg:onChanged("changingDirection", function(newIdx)
+  changingDirection = changingDirections[newIdx]
+end)
+
+cfg:addProperty({
+  type        = cv.TYPES.SELECTOR,
+  key         = "returnDirection",
+  name        = "restart direction",
+  description = "direction to move in when restarting farm",
+  category    = cvo.cat,
+  subcategory = cvo.subc.greturn,
+  default     = 1,
+  options     = changingDirections
+})
+cfg:onChanged("returnDirection", function(newIdx)
+  returnDirection = changingDirections[newIdx]
+end)
+cfg:addProperty({
+    type        = cv.TYPES.TEXT,
+    key         = "returnBlockBelowFeet",
+    name        = "block name",
+    description = "block to detect for restarting farm",
+    category    = cvo.cat,
+    subcategory = cvo.subc.greturn,
+    default     = "",
+    placeholder = "redstone_block...",
+})
+cfg:onChanged("returnBlockBelowFeet", function(newValue)
+  returnBlockBelowFeet = newValue
+end)
+
+cfg:initialize()
+
+-- cryvigilance end ------------------------------------------------------------
+
