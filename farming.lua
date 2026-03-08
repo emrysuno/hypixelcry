@@ -1,12 +1,15 @@
 local rotations = require("rotations_v2.lua")
 local notifications = require("notifications.lua")
-local pest_fly = require("pest_fly.lua")
+local pest_fly = require("goonPestFly.lua")
 local gui = require("goonUi.lua")
 local gut = require("goonUtils.lua")
 local gog = require("goonLog.lua")
 local cv = require("CryVigilance/index")
+local inventory_utils = require("inventory_utils.lua")
 
 -- config ----------------------------------------------------------------------
+
+gog.config.logTypes.debug.enabled = false
 
 -- key to toggle the script (doesn't stop when its killing pests)
 -- find them in this channel https://discord.com/channels/1418100297615802439/1440138302777987133
@@ -81,7 +84,7 @@ gut.tgl.visitors = true
 gut.tgl.velocity = true
 gut.tgl.blockBelowFeet = true
 gut.tgl.pet = true
-gui.config.gapInLinesFromTop = 2
+gui.config.gapInLinesFromTop = 0
 
 pest_fly.setState("Stop")
 rotations.setRotationSpeed(5)
@@ -93,6 +96,7 @@ local mainToggle = false
 local spray = "default"
 local sprayTime = 0
 local wasKillingState = "left"
+local wasMoving = false
 -- local pestCooldown = 0
 
 local function toggleSys()
@@ -118,6 +122,61 @@ end
 
 local last_pos = nil
 local time_between_updates = 0.02
+local ready = false
+local function getReady()
+
+  local failed = false
+
+  local tool = inventory_utils.findItemByDisplayNameInHotbar("bountiful")
+  if tool and tool > -1 then
+    toolSlot = tool
+    gog.info("hoe/axe slot set to - " .. tostring(tool))
+    done = true
+  else
+    mainToggle = false
+    failed = true
+    gog.error("no bountiful hoe/axe found in hotbar")
+  end
+
+  local sprayy = inventory_utils.findItemByDisplayNameInHotbar("sprayonator")
+  if tglSpray then
+    if sprayy and sprayy > -1 then
+      spraySlot = sprayy
+      gog.info("spray slot set to - " .. tostring(sprayy))
+    else
+      mainToggle = false
+      failed = true
+      gog.error("no sprayonator found in hotbar, either get one in hotbar or toggle auto-spray off")
+    end
+  end
+
+  local rodd = inventory_utils.findItemByDisplayNameInHotbar("rod")
+  if tglRodSwap then
+    if rodd and rodd > -1 then
+      rodSwapSlot = rodd
+      gog.info("rod slot set to - " .. tostring(rodd))
+    else
+      mainToggle = false
+      failed = true
+      gog.error("no rod found in hotbar, either get one in hotbar or toggle rod-swap off")
+    end
+  end
+
+  local vac = inventory_utils.findItemByDisplayNameInHotbar("vacuum")
+  if vac and vac > -1 then
+    pest_fly.slotVacuum = vac
+    gog.info("vacuum slot set to - " .. tostring(vac))
+  else
+    mainToggle = false
+    failed = true
+    gog.error("no vacuum found in hotbar")
+  end
+
+  if not failed then
+    ready = true
+  end
+
+end
 
 local state = "left"
 local lastState = "left"
@@ -212,7 +271,22 @@ registerClientTickPost(function()
   if tabBody then tabBody = tabBody.body end
   if not tabBody then return end
 
-  if mainToggle ~= true then return end
+
+  if mainToggle ~= true then
+    pest_fly.setState("Stop")
+    if wasMoving then
+      gut.playerInputStopAll()
+      wasMoving = false
+    end
+    return
+  end
+
+  wasMoving = true
+
+  if not ready then
+    getReady()
+    return
+  end
 
   rotations.update()
 
@@ -530,7 +604,8 @@ local cvo = {
     pet = "pet",
     camera = "camera",
     spray = "spray",
-    misc = "misc"
+    misc = "misc",
+    dev = "dev"
   }
 }
 
@@ -610,35 +685,6 @@ cfg:addProperty({
 })
 cfg:onChanged("gpitch", function(newValue)
   gpitch = newValue
-end)
-
-cfg:addProperty({
-  type        = cv.TYPES.SLIDER,
-  key         = "groundHeightMin",
-  name        = "lowest farming Y level",
-  description = "the lowest Y level of the farm",
-  category    = cvo.cat,
-  subcategory = cvo.subc.misc,
-  default     = 67,
-  min         = 67,
-  max         = 77,
-})
-cfg:onChanged("groundHeightMin", function(newValue)
-  groundHeightMin = newValue
-end)
-cfg:addProperty({
-  type        = cv.TYPES.SLIDER,
-  key         = "groundHeightMax",
-  name        = "highest farming Y level",
-  description = "the highest Y level of the farm (lowest + 1 if your farm is flat)",
-  category    = cvo.cat,
-  subcategory = cvo.subc.misc,
-  default     = 69,
-  min         = 67,
-  max         = 77,
-})
-cfg:onChanged("groundHeightMax", function(newValue)
-  groundHeightMax = newValue
 end)
 
 cfg:addProperty({
@@ -745,6 +791,48 @@ cfg:addProperty({
 })
 cfg:onChanged("returnBlockBelowFeet", function(newValue)
   returnBlockBelowFeet = newValue
+end)
+
+cfg:addProperty({
+  type        = cv.TYPES.SLIDER,
+  key         = "groundHeightMin",
+  name        = "lowest farming Y level",
+  description = "the lowest Y level of the farm",
+  category    = cvo.cat,
+  subcategory = cvo.subc.misc,
+  default     = 67,
+  min         = 67,
+  max         = 77,
+})
+cfg:onChanged("groundHeightMin", function(newValue)
+  groundHeightMin = newValue
+end)
+cfg:addProperty({
+  type        = cv.TYPES.SLIDER,
+  key         = "groundHeightMax",
+  name        = "highest farming Y level",
+  description = "the highest Y level of the farm (lowest + 1 if your farm is flat)",
+  category    = cvo.cat,
+  subcategory = cvo.subc.misc,
+  default     = 69,
+  min         = 67,
+  max         = 77,
+})
+cfg:onChanged("groundHeightMax", function(newValue)
+  groundHeightMax = newValue
+end)
+
+cfg:addProperty({
+  type        = cv.TYPES.SWITCH,
+  key         = "logDebug",
+  name        = "log debug",
+  description = "logs debug messages",
+  category    = cvo.cat,
+  subcategory = cvo.subc.dev,
+  default     = false,
+})
+cfg:onChanged("logDebug", function(newValue)
+  gog.config.logTypes.debug.enabled = newValue
 end)
 
 cfg:initialize()
