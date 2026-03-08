@@ -1,0 +1,12 @@
+{
+  "workspace": {
+    "library": [
+      ".",
+      "libs"
+    ],
+    "checkThirdParty": false
+  },
+  "runtime": {
+    "version": "Lua 5.2"
+  }
+}
