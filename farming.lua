@@ -821,6 +821,20 @@ cfg:addProperty({
 cfg:onChanged("groundHeightMax", function(newValue)
   groundHeightMax = newValue
 end)
+cfg:addProperty({
+  type        = cv.TYPES.SLIDER,
+  key         = "flyY",
+  name        = "pest killing Y level",
+  description = "the Y level to fly at when killing pests",
+  category    = cvo.cat,
+  subcategory = cvo.subc.misc,
+  default     = 77,
+  min         = 67,
+  max         = 80,
+})
+cfg:onChanged("groundHeightMax", function(newValue)
+  pest_fly.flyY = newValue
+end)
 
 cfg:addProperty({
   type        = cv.TYPES.SWITCH,
