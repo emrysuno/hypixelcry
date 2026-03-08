@@ -98,6 +98,21 @@ end
 
 --------------------------------------------------------------------------------
 
+function all.getInvItem(s)
+  if not player.inventory.isAnyScreenOpened() then return nil end
+  local slot = player.inventory.getStackFromContainer(s)
+  if not slot then return nil end
+
+  -- altering some stuff
+  if slot.display_name then
+    slot.display_name = slot.display_name:lower()
+  end
+
+  return slot
+end
+
+--------------------------------------------------------------------------------
+
 ---@param table table
 ---@return string
 function all.tableToString(table)
@@ -365,7 +380,8 @@ end
 local function _getBlockBelowFeet(world)
   if type(all.inf.pos) ~= "table" then return end
   local x, y, z = all.inf.pos.x, all.inf.pos.y, all.inf.pos.z
-  local blk = (world.getBlock(x-1,y-1,z-0.5)).name
+  local blk = world.getBlock(x-1,y-1,z-0.5)
+  if blk then blk = blk.name else return nil end
   local ret = blk:match("block%.minecraft.(.*)")
   return ret
 end
