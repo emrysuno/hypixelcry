@@ -185,6 +185,7 @@ local state = "left"
 local lastState = "left"
 local stopped = false
 local teleported = false
+local pos = {x = -1, y = -1, z = -1}
 
 local macroStartTime = nil -- Время начала работы макроса на точке
 local totalMacroTime = 0 -- Общее время работы макроса
@@ -245,7 +246,7 @@ register2DRenderer(function()
     -- { text = "pestAlive: " .. (gut.inf.pestAlive or "idk") },
     -- { text = "pestCdRaw: " .. (gut.dump.pestCdRaw or "idk") .. " | " .. type(gut.inf.pestCdRaw) },
     -- { text = "pestCd: " .. (gut.inf.pestCd or "idk") },
-    -- { text = "pos: " .. (gut.inf.pos.x or "idk") .. ", " .. (gut.inf.pos.y or "idk") .. ", " .. (gut.inf.pos.z or "idk") },
+    -- { text = "pos: " .. (pos.x or "idk") .. ", " .. (pos.y or "idk") .. ", " .. (pos.z or "idk") },
     -- { text = "block: " .. (gut.inf.blockBelowFeet or "idk") },
     { text = "state: " .. (state or "idk") },
     { text = "state2: " .. (state2 or "idk") }
@@ -292,7 +293,7 @@ registerClientTickPost(function()
 
   rotations.update()
 
-  local pos = player.getPos()
+  pos = player.getPos()
   local position = player.getLocation()  -- обновляем location каждый тик
 
   if position == "GARDEN" and pest_fly.getState() == "Stop" then
@@ -396,13 +397,20 @@ registerClientTickPost(function()
 
           local total_speed = math.sqrt(speed_x*speed_x + speed_y*speed_y + speed_z*speed_z)
 
-          if total_speed <= 0.0 and not player.inventory.isAnyScreenOpened() then
+          if total_speed <= 0.1 and not player.inventory.isAnyScreenOpened() then
             -- if pos.z ~= turnAxis or pos.z ~= turnAxis2 then goto alright end
             -- if gut.onCooldown("turning", 15) then return end
             -- player.addMessage("turning")
-            if pos and pos.x == returnX and pos.z == returnZ then
+            if gut.isNumCloseTo(pos.x, returnX, 1) and gut.isNumCloseTo(pos.z, returnZ, 1) then
+              lastState = state
               state = "return"
               goto alright
+            elseif state == "return" then
+              if lastState == "left" then
+                state = "right"
+              elseif lastState == "right" then
+                state = "left"
+              end
             -- elseif state == "left" then
             --   state = "right"
             -- elseif state == "right" then
@@ -428,10 +436,11 @@ registerClientTickPost(function()
         -- player.input.setSelectedSlot(0)
         player.input.setPressedSprinting(true)
         -- player.input.setPressedForward(true)
-        player.input.setPressedAttack(true)
+        -- player.input.setPressedAttack(true)
         -- gog.debug("setPressedAttack")
         if state == "left" then
 
+          player.input.setPressedAttack(true)
           if gdirection == "right & back" then
             player.input.setPressedLeft(false)
             player.input.setPressedForward(false)
@@ -453,6 +462,7 @@ registerClientTickPost(function()
 
         elseif state == "right" then
 
+          player.input.setPressedAttack(true)
           if gdirection == "right & back" then
             player.input.setPressedLeft(false)
             player.input.setPressedForward(false)
@@ -474,6 +484,7 @@ registerClientTickPost(function()
 
         elseif state == "changing" then
 
+          player.input.setPressedAttack(true)
           if changingDirection == "W" then
             player.input.setPressedLeft(false)
             player.input.setPressedForward(true)
@@ -501,6 +512,7 @@ registerClientTickPost(function()
 
         elseif state == "return" then
 
+          player.input.setPressedAttack(false)
           if returnDirection == "W" then
             player.input.setPressedLeft(false)
             player.input.setPressedForward(true)
