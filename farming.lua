@@ -863,7 +863,7 @@ cfg:addProperty({
   min         = 67,
   max         = 90,
 })
-cfg:onChanged("groundHeightMax", function(newValue)
+cfg:onChanged("flyY", function(newValue)
   pest_fly.flyY = newValue
 end)
 
