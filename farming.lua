@@ -66,7 +66,9 @@ local groundHeightMax = 69
 -- the amount of pests when you want to start killing them
 local pestsToStartKill = 1
 
-local returnBlockBelowFeet = "redstone_block"
+-- local returnBlockBelowFeet = "redstone_block"
+local returnX = 0
+local returnZ = 0
 
 -- ignore these
 -- local turnAxis = -238.700
@@ -84,6 +86,7 @@ gut.tgl.visitors = true
 gut.tgl.velocity = true
 gut.tgl.blockBelowFeet = true
 gut.tgl.pet = true
+gut.tgl.pos = true
 gui.config.gapInLinesFromTop = 0
 
 pest_fly.setState("Stop")
@@ -243,7 +246,7 @@ register2DRenderer(function()
     -- { text = "pestCdRaw: " .. (gut.dump.pestCdRaw or "idk") .. " | " .. type(gut.inf.pestCdRaw) },
     -- { text = "pestCd: " .. (gut.inf.pestCd or "idk") },
     -- { text = "pos: " .. (gut.inf.pos.x or "idk") .. ", " .. (gut.inf.pos.y or "idk") .. ", " .. (gut.inf.pos.z or "idk") },
-    { text = "block: " .. (gut.inf.blockBelowFeet or "idk") },
+    -- { text = "block: " .. (gut.inf.blockBelowFeet or "idk") },
     { text = "state: " .. (state or "idk") },
     { text = "state2: " .. (state2 or "idk") }
   }
@@ -382,7 +385,7 @@ registerClientTickPost(function()
         teleported = false
         grounded = true
         stopped = false
-        if last_pos ~= nil then
+        if pos and last_pos ~= nil then
           local dx = pos.x - last_pos.x
           local dy = pos.y - last_pos.y
           local dz = pos.z - last_pos.z
@@ -397,7 +400,7 @@ registerClientTickPost(function()
             -- if pos.z ~= turnAxis or pos.z ~= turnAxis2 then goto alright end
             -- if gut.onCooldown("turning", 15) then return end
             -- player.addMessage("turning")
-            if gut.inf.blockBelowFeet == returnBlockBelowFeet then
+            if pos and pos.x == returnX and pos.z == returnZ then
               state = "return"
               goto alright
             -- elseif state == "left" then
@@ -779,17 +782,34 @@ cfg:onChanged("returnDirection", function(newIdx)
   returnDirection = changingDirections[newIdx]
 end)
 cfg:addProperty({
-    type        = cv.TYPES.TEXT,
-    key         = "returnBlockBelowFeet",
-    name        = "block name",
-    description = "block to detect for restarting farm",
-    category    = cvo.cat,
-    subcategory = cvo.subc.greturn,
-    default     = "",
-    placeholder = "redstone_block...",
+    type          = cv.TYPES.DECIMAL_SLIDER,
+    key           = "returnX",
+    name          = "X coord for farm end",
+    description   = "the X coordinate for the farm end position (ctrl-click to enter manually)",
+    category      = cvo.cat,
+    subcategory   = cvo.subc.greturn,
+    default       = 0.0,
+    minF          = -250,
+    maxF          = 250,
+    decimalPlaces = 1,
 })
-cfg:onChanged("returnBlockBelowFeet", function(newValue)
-  returnBlockBelowFeet = newValue
+cfg:onChanged("returnX", function(newValue)
+  returnX = newValue
+end)
+cfg:addProperty({
+    type          = cv.TYPES.DECIMAL_SLIDER,
+    key           = "returnZ",
+    name          = "Z coord for farm end",
+    description   = "the Z coordinate for the farm end position (ctrl-click to enter manually)",
+    category      = cvo.cat,
+    subcategory   = cvo.subc.greturn,
+    default       = 0.0,
+    minF          = -250,
+    maxF          = 250,
+    decimalPlaces = 1,
+})
+cfg:onChanged("returnZ", function(newValue)
+  returnZ = newValue
 end)
 
 cfg:addProperty({
