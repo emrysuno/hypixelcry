@@ -271,7 +271,6 @@ registerClientTickPost(function()
   if tabBody then tabBody = tabBody.body end
   if not tabBody then return end
 
-
   if mainToggle ~= true then
     pest_fly.setState("Stop")
     if wasMoving then
@@ -830,7 +829,7 @@ cfg:addProperty({
   subcategory = cvo.subc.misc,
   default     = 77,
   min         = 67,
-  max         = 80,
+  max         = 90,
 })
 cfg:onChanged("groundHeightMax", function(newValue)
   pest_fly.flyY = newValue
