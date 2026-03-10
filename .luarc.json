@@ -1,12 +1,17 @@
 {
   "workspace": {
     "library": [
-      ".",
-      "libs"
+      "libs",
+      "types.lua"
     ],
     "checkThirdParty": false
   },
   "runtime": {
-    "version": "Lua 5.2"
+    "version": "Lua 5.2",
+    "path": [
+      "?.lua",
+      "libs/?.lua",
+      "libs/?.lua"
+    ]
   }
 }
