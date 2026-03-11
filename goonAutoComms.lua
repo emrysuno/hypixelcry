@@ -1,26 +1,32 @@
+local gcu = require("goonCommsUtils")
 local gsm = require("goonStateMachine")
+local gst = require("goonStates")
 local gut = require("goonUtils")
 local gui = require("goonUi")
 local gog = require("goonLog")
 local vgl = require("CryVigilance/index")
-local gst = require("goonStates")
 local rot = require("rotations_v3")
-local gcu = require("goonCommsUtils")
+local blu = require("blockUtils")
 
 -- initialization --------------------------------------------------------------
 
-local stm = gsm.StateMachine.new()
+gog.info("use /goon to open the menu")
+
+-- init state machine
+local stm = gsm.StateMachine:new()
+stm.log = gog
+stm.rot = rot
+stm.blockUtils = blu
+
+-- init states
 local sts = {} -- sts stands for states but i like 3 letter variables so fuck you
--- create the state objects
-sts.standby = stm:addState(gsm.State.new("standby"))
-sts.idle = stm:addState(gsm.State.new("idle"))
-sts.mining = stm:addState(gsm.State.new("mining"))
-sts.claiming = stm:addState(gsm.State.new("claiming"))
+sts.standby = stm:addState(gsm.State:new("standby"))
+sts.idle = stm:addState(gsm.State:new("idle"))
+sts.claiming = stm:addState(gsm.State:new("claiming"))
 
 -- templates
-sts.aotv = stm:addState(gst.instantiateAotv())
-sts.aotv.gog = gog
-sts.aotv.rot = rot
+sts.aotv = stm:addState(gst.StateAotv.new("aotv"))
+sts.mining = stm:addState(gst.StateMining.new("mining"))
 
 -- rot
 rot.setModifier(8)
@@ -45,18 +51,12 @@ tmp.tgl = {
   debug = false
 }
 
-local function gotoLocation(location, callback)
-  sts.aotv.target = location.path
-  sts.aotv.callback = callback
-  stm:switch(sts.aotv)
-end
-
 -- states ----------------------------------------------------------------------
 
 -- state standby ---------------------------------------------------------------
 
 function sts.standby:onEnter()
-  gog.critical("standby")
+  self:critical("standby")
 end
 
 -- state idle ------------------------------------------------------------------
@@ -65,7 +65,7 @@ function sts.idle:onEnter()
 
   if not gcu.locations.warpForge:isPlayerAtGoal() then
     player.sendCommand("/warp forge")
-    gog.debug(self.logPrefix .. "/warp forge")
+    self:debug("/warp forge")
     self.wait = 20
   end
 
@@ -78,22 +78,38 @@ function sts.idle:onUpdate()
     return
   end
 
-  -- for test purposes
-  -- gotoLocation(gcu.locations.cliffside_veins, sts.mining)
+  -- -- for test purposes
+  -- if not tmp.test then
+  --   sts.aotv:init(
+  --     gcu.locations.cliffside_veins.path,
+  --     function()
+  --       sts.mining:init(sts.standby, { "wool", "prismarine", "cyan_terracotta" }, 3)
+  --     end)
+  --   return
+  -- end
 
   -- claim if any comms are done
   if gcu.commsClaimable() then
-    gotoLocation(gcu.locations.forge_emissary, sts.claiming)
+    sts.aotv:init(gcu.locations.forge_emissary.path, sts.claiming)
     return
   end
 
   -- otherwise go mining
   if tmp.activeComm then
-    gotoLocation(gcu.locations[tmp.activeComm[2]], sts.mining)
+    sts.aotv:init(
+      gcu.locations[tmp.activeComm.comm_location_index].path,
+      function()
+        sts.mining:init(
+          sts.idle,
+          gcu.commsClaimable,
+          tmp.activeComm.comm_mineable_type or gcu.mineables.mithril
+        )
+      end
+    )
     return
   end
 
-  gog.info("no comms to do, standing by")
+  self:info("no comms to do, standing by")
   self.machine:switch(sts.standby)
 
 end
@@ -101,54 +117,37 @@ end
 -- state claiming -----------------------------------------------------------------
 
 function sts.claiming:onEnter()
-  self.slots = { 11, 12, 14, 15 }
+  tmp.claimingSlots = { 11, 12, 14, 15 }
 end
 
 function sts.claiming:onUpdate()
 
-  if #self.slots == 0 then self.machine:switch(sts.idle) end
+  if #tmp.claimingSlots == 0 then self.machine:switch(sts.idle) end
 
   -- open emissary inventory
   if not player.inventory.isAnyScreenOpened() then
     player.input.leftClick()
-    gog.debug(self.logPrefix .. "left clicking emissary")
+    self:debug("left clicking emissary")
     self.wait = math.random(15, 20)
     return
   end
 
-  local slot = self.slots[1]
+  local slot = tmp.claimingSlots[1]
   local item = player.inventory.getStackFromContainer(slot)
   if not item or not item.lore then goto claimingIdk end
   if gut.isTextInLore("COMPLETED", item.lore, true) then
     player.inventory.leftClick(slot)
-    gog.debug(self.logPrefix .. "clicking slot " .. slot)
+    self:debug("clicking slot " .. slot)
   end
 
   ::claimingIdk::
-  table.remove(self.slots, 1)
+  table.remove(tmp.claimingSlots, 1)
   self.wait = math.random(15, 20)
 
 end
 
 function sts.claiming:onExit()
   player.inventory.closeScreen()
-end
-
--- state mining ----------------------------------------------------------------
-
-function sts.mining:onEnter()
-  if tmp.location == nil then self.machine:switch(sts.standby) end
-end
-
-function sts.mining:onUpdate()
-
-  if tmp.location == nil then self.machine:switch(sts.standby) end
-
-  if gcu.commsClaimable() then
-    self.machine:switch(sts.idle)
-    return
-  end
-
 end
 
 -- states end ------------------------------------------------------------------
@@ -185,7 +184,7 @@ register2DRenderer(function()
   -- 4 commissions
   for i = 1, 4 do
     local s = gut.inf.comms and gut.inf.comms[i] or "ERROR"
-    if tmp.activeComm and i == tmp.activeComm[1] then
+    if tmp.activeComm and i == tmp.activeComm.comm_index then
       s = gut.clr.green .. s
     end
     table.insert(content, {
@@ -203,7 +202,9 @@ register2DRenderer(function()
     table.insert(content, { text = "wait: " .. ((stm.currentState and stm.currentState.wait) or "-1") })
     table.insert(content, { text = "step: " .. ((stm.currentState and stm.currentState.step) or "-1") })
     table.insert(content, { text = "" })
-
+    table.insert(content, { text = "target: " .. (
+      sts.mining.target and tostring(sts.mining.target.box) or "idk") }
+    )
     table.insert(content, { text = "location: " .. tostring(tmp.location) })
 
   end
@@ -216,6 +217,21 @@ registerKeyEvent(function(key, action)
   if key == 343 and action == "Release" then
     tmp.tgl.main = not tmp.tgl.main
   end
+end)
+
+registerWorldRenderer(function (context)
+
+  if not sts.mining.target then return end
+
+  local t = sts.mining.target
+  local line = {
+    x = t.x, y = t.y, z = t.z,
+    red = 255, green = 0, blue = 0, alpha = 255,
+    line_width = 2
+  }
+  -- context.renderLineFromCursor(line)
+  context.renderOutline(line)
+
 end)
 
 -- vigilance -------------------------------------------------------------------
